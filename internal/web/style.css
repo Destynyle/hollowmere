@@ -1,0 +1,372 @@
+/* TAP GUI — parchment & pixel theme.
+   Panels are parchment sheets in dark oak frames; buttons are Minecraft-like
+   stone blocks; text uses pixel fonts (with monospace fallbacks offline). */
+:root {
+  --ink: #3b2716;
+  --ink-soft: #6b4f33;
+  --paper: #ecd9ab;
+  --paper-light: #f5e8c6;
+  --paper-dark: #d9bf86;
+  --frame: #4a2f1a;
+  --frame-dark: #2a1a0d;
+  --oak-1: #6f4a26;
+  --oak-2: #5e3d1f;
+  --stone: #8b8b8b;
+  --stone-hi: #c6c6c6;
+  --stone-lo: #555555;
+  --hover: #7e8cc9;
+  --accent: #3d8b27;      /* grass green */
+  --accent-2: #b8860b;    /* gold */
+  --danger: #a3221c;      /* red ink */
+  --info: #1f4f8f;        /* blue ink */
+  --purple: #6b2d86;
+  --pixel: "Press Start 2P", "Courier New", monospace;
+  --body: "VT323", "Courier New", ui-monospace, monospace;
+  font-family: var(--body);
+  font-size: 20px;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.15;
+  /* dark oak planks */
+  background-color: var(--oak-2);
+  background-image:
+    repeating-linear-gradient(0deg, rgba(0,0,0,.35) 0 4px, transparent 4px 64px),
+    repeating-linear-gradient(90deg, transparent 0 96px, rgba(0,0,0,.25) 96px 100px, transparent 100px 200px),
+    repeating-linear-gradient(90deg, var(--oak-1) 0 12px, var(--oak-2) 12px 20px, #684422 20px 36px);
+}
+
+h2 {
+  font-family: var(--pixel);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+  color: var(--frame);
+  text-shadow: 2px 2px 0 var(--paper-dark);
+}
+h3 {
+  font-family: var(--pixel);
+  font-size: 9px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 16px 0 6px;
+  padding-bottom: 4px;
+  border-bottom: 2px dashed var(--paper-dark);
+}
+code { color: var(--ink-soft); font-family: var(--body); font-size: 18px; }
+.muted { color: var(--ink-soft); }
+
+/* ---------------------------------------------------------------- controls */
+button {
+  font-family: var(--pixel);
+  font-size: 10px;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 2px 2px 0 #3f3f3f;
+  background: var(--stone);
+  border: 2px solid #000;
+  border-radius: 0;
+  padding: 9px 12px;
+  box-shadow: inset 2px 2px 0 var(--stone-hi), inset -2px -3px 0 var(--stone-lo);
+  cursor: pointer;
+  image-rendering: pixelated;
+}
+button:hover:not(:disabled) {
+  background: var(--hover);
+  box-shadow: inset 2px 2px 0 #bcc6f2, inset -2px -3px 0 #4a5590;
+  color: #ffffa0;
+}
+button:active:not(:disabled) {
+  box-shadow: inset -2px -2px 0 var(--stone-hi), inset 2px 3px 0 var(--stone-lo);
+}
+button:disabled {
+  background: #6f6f6f;
+  color: #a0a0a0;
+  text-shadow: none;
+  box-shadow: inset 2px 2px 0 #808080, inset -2px -3px 0 #4d4d4d;
+  cursor: not-allowed;
+}
+button.danger { background: #9c3b32; box-shadow: inset 2px 2px 0 #d06a5f, inset -2px -3px 0 #5c1f1a; }
+button.mini { font-size: 8px; padding: 6px 8px; }
+button:focus-visible, input:focus-visible { outline: 3px solid #ffffa0; outline-offset: 1px; }
+
+input {
+  font-family: var(--body);
+  font-size: 20px;
+  color: var(--ink);
+  background: var(--paper-light);
+  border: 2px solid var(--frame);
+  border-radius: 0;
+  padding: 4px 8px;
+  min-width: 0;
+  box-shadow: inset 2px 2px 0 rgba(74,47,26,.25);
+}
+input::placeholder { color: #9a8262; }
+input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; vertical-align: middle; }
+
+.row { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+.row.wrap { flex-wrap: wrap; }
+.row input { flex: 1 1 140px; }
+
+/* ---------------------------------------------------------------- top bar */
+.topbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  padding: 10px 16px;
+  background: var(--frame-dark);
+  border-bottom: 4px solid #000;
+  box-shadow: inset 0 -4px 0 var(--frame);
+}
+.brand {
+  font-family: var(--pixel);
+  font-size: 22px;
+  color: #ffd84a;
+  text-shadow: 3px 3px 0 #7a4b00, 5px 5px 0 #000;
+  letter-spacing: 2px;
+}
+.brand span {
+  display: block;
+  font-size: 7px;
+  color: var(--paper-dark);
+  text-shadow: 1px 1px 0 #000;
+  letter-spacing: 1px;
+  margin-top: 6px;
+}
+.connect { display: flex; gap: 6px; flex: 1 1 360px; flex-wrap: wrap; }
+.connect input { flex: 1 1 120px; }
+.counters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.counter, .state {
+  font-family: var(--pixel);
+  font-size: 9px;
+  padding: 7px 9px;
+  border: 2px solid #000;
+}
+.counter { background: var(--paper); color: var(--ink); box-shadow: inset -2px -2px 0 var(--paper-dark); }
+.counter b { color: var(--danger); }
+.state.on { background: #3d8b27; color: #fff; text-shadow: 1px 1px 0 #1b4210; }
+.state.off { background: #7a1f1a; color: #ffd6d0; text-shadow: 1px 1px 0 #000; }
+
+/* ---------------------------------------------------------------- layout */
+.layout {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-areas:
+    "room side"
+    "actions side"
+    "chat log";
+}
+.room { grid-area: room; }
+.side { grid-area: side; }
+.actions { grid-area: actions; }
+.chat { grid-area: chat; display: flex; flex-direction: column; }
+.log { grid-area: log; display: flex; flex-direction: column; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); grid-template-areas: "room" "actions" "side" "chat" "log"; }
+}
+
+/* parchment sheet in a pixel frame */
+.panel {
+  position: relative;
+  min-width: 0;
+  padding: 16px;
+  background-color: var(--paper);
+  background-image:
+    radial-gradient(ellipse at 20% 15%, rgba(255,255,255,.35), transparent 45%),
+    radial-gradient(ellipse at 85% 80%, rgba(140,95,40,.18), transparent 50%),
+    radial-gradient(circle at 60% 30%, rgba(140,95,40,.08) 0 2px, transparent 3px),
+    radial-gradient(circle at 30% 70%, rgba(140,95,40,.08) 0 2px, transparent 3px);
+  background-size: auto, auto, 37px 41px, 53px 29px;
+  border: 4px solid var(--frame);
+  box-shadow:
+    0 0 0 4px #000,
+    8px 8px 0 4px rgba(0,0,0,.45),
+    inset 0 0 0 2px var(--paper-light),
+    inset 0 0 28px rgba(120,75,25,.45);
+}
+/* pixel nails in the corners */
+.panel::before, .panel::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  width: 6px; height: 6px;
+  background: #5a5a5a;
+  box-shadow: inset -2px -2px 0 #2d2d2d, inset 2px 2px 0 #9a9a9a;
+}
+.panel::before { left: 4px; }
+.panel::after { right: 4px; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+
+/* ---------------------------------------------------------------- room */
+.room #room-name::before { content: "» "; color: var(--accent-2); }
+.desc {
+  font-size: 22px;
+  line-height: 1.25;
+  margin: 10px 0 14px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,.28);
+  border-left: 4px solid var(--accent-2);
+}
+.room-grid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; }
+@media (max-width: 560px) { .room-grid { grid-template-columns: minmax(0, 1fr); } }
+.compass {
+  display: grid;
+  grid-template-columns: repeat(3, 56px);
+  grid-auto-rows: 44px;
+  gap: 4px;
+  align-content: start;
+  padding: 6px;
+  background: #3a3a3a;
+  border: 2px solid #000;
+  box-shadow: inset 2px 2px 0 #1f1f1f;
+}
+.compass .dir { padding: 0; font-size: 9px; }
+.compass .look { background: #3d8b27; box-shadow: inset 2px 2px 0 #7cc25e, inset -2px -3px 0 #1f5212; font-size: 8px; }
+
+.list { list-style: none; margin: 0; padding: 0; }
+.list li {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 4px 6px;
+  border-bottom: 2px dotted rgba(74,47,26,.35);
+}
+.list li:hover { background: rgba(255,255,255,.3); }
+.list li .name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; font-size: 21px; }
+.list li .id { color: var(--ink-soft); font-size: 16px; }
+.list li.empty { color: var(--ink-soft); font-style: italic; border: 0; }
+.list li.empty:hover { background: none; }
+.tag {
+  font-family: var(--pixel);
+  font-size: 7px;
+  padding: 4px 5px;
+  background: var(--paper-dark);
+  color: var(--ink);
+  border: 2px solid var(--frame);
+}
+.tag.hostile { background: var(--danger); color: #fff; border-color: #000; }
+.tag.quest { background: #ffd84a; color: #5a3b00; border-color: #7a4b00; }
+.tag.quest::before { content: "! "; }
+#room-items .name::before { content: "◆ "; color: var(--accent-2); }
+#room-npcs .name::before { content: "☻ "; color: var(--info); }
+.players li .name::before { content: "■ "; color: var(--accent); }
+#inventory .name::before { content: "▣ "; color: var(--ink-soft); }
+
+.dialogue {
+  position: relative;
+  margin-top: 16px;
+  padding: 10px 14px;
+  background: #fffaf0;
+  border: 3px solid #000;
+  box-shadow: 4px 4px 0 rgba(0,0,0,.35);
+}
+.dialogue::after {
+  content: "";
+  position: absolute;
+  left: 22px; top: -11px;
+  width: 12px; height: 8px;
+  background: #fffaf0;
+  border: 3px solid #000;
+  border-bottom: 0;
+}
+.dialogue .speaker { font-family: var(--pixel); font-size: 10px; color: var(--info); }
+.dialogue .line { margin-top: 6px; font-size: 22px; }
+
+/* ---------------------------------------------------------------- hearts & bars */
+.hearts { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 10px; }
+.heart {
+  width: 27px; height: 24px;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+}
+.hearts.low .heart.full, .hearts.low .heart.half { animation: shake .4s steps(2) infinite; }
+.hearts.low .heart:nth-child(odd) { animation-delay: .2s; }
+@keyframes shake { 50% { transform: translateY(-2px); } }
+@media (prefers-reduced-motion: reduce) { .hearts.low .heart { animation: none !important; } }
+
+.hp { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.hp-bar {
+  flex: 1;
+  height: 10px;
+  background: #1f1f1f;
+  border: 2px solid #000;
+  overflow: hidden;
+}
+.hp-bar > div {
+  height: 100%;
+  width: 0;
+  background-color: var(--accent);
+  /* segmented, like the XP bar */
+  background-image: repeating-linear-gradient(90deg, transparent 0 16px, rgba(0,0,0,.45) 16px 18px);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.35);
+}
+.hp-bar.enemy > div { background-color: var(--danger); }
+#hp-text { font-family: var(--pixel); font-size: 9px; white-space: nowrap; }
+
+.side .combat {
+  margin-top: 12px;
+  padding: 10px;
+  background: rgba(163,34,28,.12);
+  border: 3px solid var(--danger);
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.3);
+}
+.side .combat b { color: var(--danger); }
+.side .combat .hp-bar { margin: 6px 0; }
+.by-name { margin-top: 8px; }
+.by-name > input { width: 100%; }
+.quests li .progress { font-family: var(--pixel); font-size: 8px; color: var(--accent-2); }
+.quests li.completed .name { color: var(--ink-soft); text-decoration: line-through; }
+.quests li.completed .name::before { content: "✔ "; color: var(--accent); }
+.quests li.active .name::before { content: "✦ "; color: var(--accent-2); }
+#group-info { font-size: 19px; }
+
+/* ---------------------------------------------------------------- chat & log */
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.tab { padding: 8px 10px; }
+.tab.active {
+  background: #3d8b27;
+  color: #fff;
+  box-shadow: inset 2px 2px 0 #7cc25e, inset -2px -3px 0 #1f5212;
+}
+.badge:not(:empty) {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 2px 4px;
+  font-size: 7px;
+  background: var(--danger);
+  border: 1px solid #000;
+  color: #fff;
+}
+.chat-views { flex: 1; display: flex; }
+.feed {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  flex: 1;
+  height: 280px;
+  overflow-y: auto;
+  background: var(--paper-light);
+  border: 2px solid var(--frame);
+  box-shadow: inset 3px 3px 0 rgba(74,47,26,.2);
+  /* ruled lines */
+  background-image: repeating-linear-gradient(180deg, transparent 0 23px, rgba(31,79,143,.12) 23px 24px);
+  background-attachment: local;
+  scrollbar-color: var(--frame) var(--paper-dark);
+}
+.feed li { padding: 1px 0; overflow-wrap: anywhere; white-space: pre-wrap; line-height: 24px; }
+.feed .time { color: #9a8262; margin-right: 8px; font-size: 16px; }
+.feed .who { color: var(--info); }
+.feed .err { color: var(--danger); }
+.feed .ok { color: var(--accent); }
+.feed .evt { color: var(--ink-soft); }
+.feed .combat { color: var(--purple); }
+.feed .quest { color: #8a5a00; }
+.feed .out { color: var(--info); }
+.heart.full { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 8' shape-rendering='crispEdges'><rect x='2' y='0' width='1' height='1' fill='%23000'/><rect x='3' y='0' width='1' height='1' fill='%23000'/><rect x='5' y='0' width='1' height='1' fill='%23000'/><rect x='6' y='0' width='1' height='1' fill='%23000'/><rect x='1' y='1' width='1' height='1' fill='%23000'/><rect x='4' y='1' width='1' height='1' fill='%23000'/><rect x='7' y='1' width='1' height='1' fill='%23000'/><rect x='0' y='2' width='1' height='1' fill='%23000'/><rect x='8' y='2' width='1' height='1' fill='%23000'/><rect x='0' y='3' width='1' height='1' fill='%23000'/><rect x='8' y='3' width='1' height='1' fill='%23000'/><rect x='1' y='4' width='1' height='1' fill='%23000'/><rect x='7' y='4' width='1' height='1' fill='%23000'/><rect x='2' y='5' width='1' height='1' fill='%23000'/><rect x='6' y='5' width='1' height='1' fill='%23000'/><rect x='3' y='6' width='1' height='1' fill='%23000'/><rect x='5' y='6' width='1' height='1' fill='%23000'/><rect x='4' y='7' width='1' height='1' fill='%23000'/><rect x='1' y='2' width='1' height='1' fill='%23e0201e'/><rect x='1' y='3' width='1' height='1' fill='%23e0201e'/><rect x='2' y='1' width='1' height='1' fill='%23e0201e'/><rect x='2' y='2' width='1' height='1' fill='%23ffb3b3'/><rect x='2' y='3' width='1' height='1' fill='%23e0201e'/><rect x='2' y='4' width='1' height='1' fill='%23e0201e'/><rect x='3' y='1' width='1' height='1' fill='%23e0201e'/><rect x='3' y='2' width='1' height='1' fill='%23ffb3b3'/><rect x='3' y='3' width='1' height='1' fill='%23e0201e'/><rect x='3' y='4' width='1' height='1' fill='%23e0201e'/><rect x='3' y='5' width='1' height='1' fill='%23e0201e'/><rect x='4' y='2' width='1' height='1' fill='%23e0201e'/><rect x='4' y='3' width='1' height='1' fill='%23e0201e'/><rect x='4' y='4' width='1' height='1' fill='%23e0201e'/><rect x='4' y='5' width='1' height='1' fill='%23e0201e'/><rect x='4' y='6' width='1' height='1' fill='%23e0201e'/><rect x='5' y='1' width='1' height='1' fill='%23e0201e'/><rect x='5' y='2' width='1' height='1' fill='%23e0201e'/><rect x='5' y='3' width='1' height='1' fill='%23e0201e'/><rect x='5' y='4' width='1' height='1' fill='%23e0201e'/><rect x='5' y='5' width='1' height='1' fill='%23e0201e'/><rect x='6' y='1' width='1' height='1' fill='%23e0201e'/><rect x='6' y='2' width='1' height='1' fill='%23e0201e'/><rect x='6' y='3' width='1' height='1' fill='%23e0201e'/><rect x='6' y='4' width='1' height='1' fill='%23e0201e'/><rect x='7' y='2' width='1' height='1' fill='%23e0201e'/><rect x='7' y='3' width='1' height='1' fill='%23e0201e'/></svg>"); }
+.heart.half { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 8' shape-rendering='crispEdges'><rect x='2' y='0' width='1' height='1' fill='%23000'/><rect x='3' y='0' width='1' height='1' fill='%23000'/><rect x='5' y='0' width='1' height='1' fill='%23000'/><rect x='6' y='0' width='1' height='1' fill='%23000'/><rect x='1' y='1' width='1' height='1' fill='%23000'/><rect x='4' y='1' width='1' height='1' fill='%23000'/><rect x='7' y='1' width='1' height='1' fill='%23000'/><rect x='0' y='2' width='1' height='1' fill='%23000'/><rect x='8' y='2' width='1' height='1' fill='%23000'/><rect x='0' y='3' width='1' height='1' fill='%23000'/><rect x='8' y='3' width='1' height='1' fill='%23000'/><rect x='1' y='4' width='1' height='1' fill='%23000'/><rect x='7' y='4' width='1' height='1' fill='%23000'/><rect x='2' y='5' width='1' height='1' fill='%23000'/><rect x='6' y='5' width='1' height='1' fill='%23000'/><rect x='3' y='6' width='1' height='1' fill='%23000'/><rect x='5' y='6' width='1' height='1' fill='%23000'/><rect x='4' y='7' width='1' height='1' fill='%23000'/><rect x='1' y='2' width='1' height='1' fill='%23e0201e'/><rect x='1' y='3' width='1' height='1' fill='%23e0201e'/><rect x='2' y='1' width='1' height='1' fill='%23e0201e'/><rect x='2' y='2' width='1' height='1' fill='%23ffb3b3'/><rect x='2' y='3' width='1' height='1' fill='%23e0201e'/><rect x='2' y='4' width='1' height='1' fill='%23e0201e'/><rect x='3' y='1' width='1' height='1' fill='%23e0201e'/><rect x='3' y='2' width='1' height='1' fill='%23ffb3b3'/><rect x='3' y='3' width='1' height='1' fill='%23e0201e'/><rect x='3' y='4' width='1' height='1' fill='%23e0201e'/><rect x='3' y='5' width='1' height='1' fill='%23e0201e'/><rect x='4' y='2' width='1' height='1' fill='%23e0201e'/><rect x='4' y='3' width='1' height='1' fill='%23e0201e'/><rect x='4' y='4' width='1' height='1' fill='%23e0201e'/><rect x='4' y='5' width='1' height='1' fill='%23e0201e'/><rect x='4' y='6' width='1' height='1' fill='%23e0201e'/><rect x='5' y='1' width='1' height='1' fill='%233a1c1c'/><rect x='5' y='2' width='1' height='1' fill='%233a1c1c'/><rect x='5' y='3' width='1' height='1' fill='%233a1c1c'/><rect x='5' y='4' width='1' height='1' fill='%233a1c1c'/><rect x='5' y='5' width='1' height='1' fill='%233a1c1c'/><rect x='6' y='1' width='1' height='1' fill='%233a1c1c'/><rect x='6' y='2' width='1' height='1' fill='%233a1c1c'/><rect x='6' y='3' width='1' height='1' fill='%233a1c1c'/><rect x='6' y='4' width='1' height='1' fill='%233a1c1c'/><rect x='7' y='2' width='1' height='1' fill='%233a1c1c'/><rect x='7' y='3' width='1' height='1' fill='%233a1c1c'/></svg>"); }
+.heart.empty { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 8' shape-rendering='crispEdges'><rect x='2' y='0' width='1' height='1' fill='%23000'/><rect x='3' y='0' width='1' height='1' fill='%23000'/><rect x='5' y='0' width='1' height='1' fill='%23000'/><rect x='6' y='0' width='1' height='1' fill='%23000'/><rect x='1' y='1' width='1' height='1' fill='%23000'/><rect x='4' y='1' width='1' height='1' fill='%23000'/><rect x='7' y='1' width='1' height='1' fill='%23000'/><rect x='0' y='2' width='1' height='1' fill='%23000'/><rect x='8' y='2' width='1' height='1' fill='%23000'/><rect x='0' y='3' width='1' height='1' fill='%23000'/><rect x='8' y='3' width='1' height='1' fill='%23000'/><rect x='1' y='4' width='1' height='1' fill='%23000'/><rect x='7' y='4' width='1' height='1' fill='%23000'/><rect x='2' y='5' width='1' height='1' fill='%23000'/><rect x='6' y='5' width='1' height='1' fill='%23000'/><rect x='3' y='6' width='1' height='1' fill='%23000'/><rect x='5' y='6' width='1' height='1' fill='%23000'/><rect x='4' y='7' width='1' height='1' fill='%23000'/><rect x='1' y='2' width='1' height='1' fill='%233a1c1c'/><rect x='1' y='3' width='1' height='1' fill='%233a1c1c'/><rect x='2' y='1' width='1' height='1' fill='%233a1c1c'/><rect x='2' y='2' width='1' height='1' fill='%233a1c1c'/><rect x='2' y='3' width='1' height='1' fill='%233a1c1c'/><rect x='2' y='4' width='1' height='1' fill='%233a1c1c'/><rect x='3' y='1' width='1' height='1' fill='%233a1c1c'/><rect x='3' y='2' width='1' height='1' fill='%233a1c1c'/><rect x='3' y='3' width='1' height='1' fill='%233a1c1c'/><rect x='3' y='4' width='1' height='1' fill='%233a1c1c'/><rect x='3' y='5' width='1' height='1' fill='%233a1c1c'/><rect x='4' y='2' width='1' height='1' fill='%233a1c1c'/><rect x='4' y='3' width='1' height='1' fill='%233a1c1c'/><rect x='4' y='4' width='1' height='1' fill='%233a1c1c'/><rect x='4' y='5' width='1' height='1' fill='%233a1c1c'/><rect x='4' y='6' width='1' height='1' fill='%233a1c1c'/><rect x='5' y='1' width='1' height='1' fill='%233a1c1c'/><rect x='5' y='2' width='1' height='1' fill='%233a1c1c'/><rect x='5' y='3' width='1' height='1' fill='%233a1c1c'/><rect x='5' y='4' width='1' height='1' fill='%233a1c1c'/><rect x='5' y='5' width='1' height='1' fill='%233a1c1c'/><rect x='6' y='1' width='1' height='1' fill='%233a1c1c'/><rect x='6' y='2' width='1' height='1' fill='%233a1c1c'/><rect x='6' y='3' width='1' height='1' fill='%233a1c1c'/><rect x='6' y='4' width='1' height='1' fill='%233a1c1c'/><rect x='7' y='2' width='1' height='1' fill='%233a1c1c'/><rect x='7' y='3' width='1' height='1' fill='%233a1c1c'/></svg>"); }

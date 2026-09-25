@@ -1,0 +1,35 @@
+services:
+  hollowmere:
+    build: .
+    image: hollowmere:latest
+    container_name: hollowmere
+    restart: unless-stopped
+    ports:
+      # The web client and the WebSocket. Behind a tunnel, bind to
+      # localhost only: "127.0.0.1:8080:8080".
+      - "8080:8080"
+      # Raw TCP for the CLI client; drop this line to disable it.
+      - "4243:4243"
+    environment:
+      TAP_HTTP: "0.0.0.0:8080"
+      TAP_TCP: "0.0.0.0:4243"
+      TAP_LOG_LEVEL: "info"
+      TAP_LOG_FILE: "/data/server.log"
+      # Hosts allowed to open a WebSocket (same-origin is always allowed).
+      TAP_ORIGINS: "${TAP_ORIGINS:-}"
+      # Set to 1 only when a proxy or tunnel you control sits in front.
+      TAP_TRUST_PROXY: "${TAP_TRUST_PROXY:-}"
+      TAP_METRICS_TOKEN: "${TAP_METRICS_TOKEN:-}"
+    volumes:
+      # Logs, and later the SQLite save file.
+      - ./state:/data
+    # A small box is the target: keep the game from eating the machine.
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hollowmere</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">HOLLOWMERE<span>a shared world of text</span></div>
+  <form id="connect-form" class="connect">
+    <input id="name" placeholder="your name" maxlength="16" aria-label="Player name" required>
+    <button id="connect-btn" type="submit">Connect</button>
+  </form>
+  <div class="counters">
+    <span class="counter" title="Players in this room">Room <b id="count-room">0</b></span>
+    <span class="counter" title="Players on the server">Server <b id="count-server">0</b></span>
+    <span id="conn-state" class="state off">offline</span>
+  </div>
+</header>
+
+<main class="layout">
+  <!-- Room --------------------------------------------------------------->
+  <section class="panel room">
+    <div class="panel-head">
+      <h2 id="room-name">Not connected</h2>
+      <code id="room-id"></code>
+    </div>
+    <p id="room-desc" class="desc">Enter a server address and a name, then press Connect.</p>
+
+    <div class="room-grid">
+      <div class="compass" id="compass">
+        <button data-dir="northwest" class="dir">NW</button>
+        <button data-dir="north" class="dir">N</button>
+        <button data-dir="northeast" class="dir">NE</button>
+        <button data-dir="west" class="dir">W</button>
+        <button id="btn-look" class="dir look" title="LOOK">LOOK</button>
+        <button data-dir="east" class="dir">E</button>
+        <button data-dir="southwest" class="dir">SW</button>
+        <button data-dir="south" class="dir">S</button>
+        <button data-dir="southeast" class="dir">SE</button>
+        <button data-dir="up" class="dir wide">UP</button>
+        <button data-dir="down" class="dir wide">DOWN</button>
+      </div>
+
+      <div class="lists">
+        <h3>Items here</h3>
+        <ul id="room-items" class="list"></ul>
+        <h3>Characters</h3>
+        <ul id="room-npcs" class="list"></ul>
+        <h3>Players here</h3>
+        <ul id="room-players" class="list players"></ul>
+      </div>
+    </div>
+
+    <div id="dialogue" class="dialogue" hidden>
+      <div class="speaker" id="dialogue-speaker"></div>
+      <div class="line" id="dialogue-line"></div>
+    </div>
+  </section>
+
+  <!-- Character ---------------------------------------------------------->
+  <section class="panel side">
+    <h2>Adventurer</h2>
+    <div id="hearts" class="hearts" aria-hidden="true"></div>
+    <div class="hp">
+      <div class="hp-bar"><div id="hp-fill"></div></div>
+      <span id="hp-text">—</span>
+    </div>
+    <div id="combat-box" class="combat" hidden>
+      <div>Fighting <b id="combat-target"></b></div>
+      <div class="hp-bar enemy"><div id="enemy-fill"></div></div>
+      <div class="row">
+        <button id="btn-attack-again">ATTACK</button>
+        <button id="btn-defend">DEFEND</button>
+        <button id="btn-flee">FLEE</button>
+      </div>
+    </div>
+
+    <h3>Inventory</h3>
+    <ul id="inventory" class="list"></ul>
+
+    <div class="by-name">
+      <input id="item-name" placeholder="item id or name (e.g. healing herbs)" aria-label="Item id or name">
+      <div class="row">
+        <button id="btn-take-name">TAKE</button>
+        <button id="btn-drop-name">DROP</button>
+        <button id="btn-use-name">USE</button>
+      </div>
+    </div>
+
+    <h3>Quests</h3>
+    <ul id="quests" class="list quests"></ul>
+
+    <h3>Group</h3>
+    <div id="group-info" class="muted">No group.</div>
+    <div class="row wrap">
+      <button id="btn-group-create">Create</button>
+      <input id="group-player" placeholder="player" aria-label="Player for group action">
+      <button id="btn-group-invite">Invite</button>
+      <button id="btn-group-join">Join</button>
+      <button id="btn-group-leave">Leave</button>
+    </div>
+  </section>
+
+  <!-- Actions ------------------------------------------------------------->
+  <section class="panel actions">
+    <div class="row wrap">
+      <button data-cmd="LOOK">LOOK</button>
+      <button data-cmd="INVENTORY">INVENTORY</button>
+      <button data-cmd="STATUS">STATUS</button>
+      <button data-cmd="QUESTS">QUESTS</button>
+      <button data-cmd="WHO">WHO</button>
+      <button id="btn-quit" class="danger">QUIT</button>
+    </div>
+    <div class="row wrap">
+      <input id="target-name" placeholder="npc or item (for TALK / ATTACK / QUEST / MOVE)" aria-label="Target">
+      <button data-target="MOVE">MOVE</button>
+      <button data-target="TAKE">TAKE</button>
+      <button data-target="DROP">DROP</button>
+      <button data-target="TALK">TALK</button>
+      <button data-target="ATTACK">ATTACK</button>
+      <button data-target="QUEST">QUEST</button>
+      <button data-target="INSPECT">INSPECT</button>
+    </div>
+  </section>
+
+  <!-- Chat ---------------------------------------------------------------->
+  <section class="panel chat">
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-scope="GLOBAL">Global <span class="badge" data-badge="GLOBAL"></span></button>
+      <button class="tab" data-scope="ROOM">Room <span class="badge" data-badge="ROOM"></span></button>
+      <button class="tab" data-scope="GROUP">Group <span class="badge" data-badge="GROUP"></span></button>
+    </div>
+    <div class="chat-views">
+      <ol class="feed" data-feed="GLOBAL"></ol>
+      <ol class="feed" data-feed="ROOM" hidden></ol>
+      <ol class="feed" data-feed="GROUP" hidden></ol>
+    </div>
+    <form id="chat-form" class="row">
+      <input id="chat-input" placeholder="Say something to Global…" autocomplete="off" aria-label="Chat message">
+      <button type="submit">Send</button>
+    </form>
+  </section>
+
+  <!-- Log ----------------------------------------------------------------->
+  <section class="panel log">
+    <div class="panel-head">
+      <h2>Log</h2>
+      <label class="muted"><input type="checkbox" id="log-raw"> raw protocol</label>
+    </div>
+    <ol id="log" class="feed"></ol>
+    <form id="raw-form" class="row">
+      <input id="raw-input" placeholder="raw command, e.g. MOVE north" autocomplete="off" aria-label="Raw command">
+      <button type="submit">Send</button>
+    </form>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
