@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -80,6 +81,7 @@ func (t *term) showPrompt() {
 
 type client struct {
 	conn    net.Conn
+	keyID   string // "<server>|<name>" under which the resume key is stored
 	t       *term
 	mu      sync.Mutex
 	pending []string // command names awaiting a reply, in order
@@ -212,6 +214,11 @@ func (c *client) renderEvent(p string) string {
 		if len(a) >= 5 {
 			return c.t.paint(cRed, fmt.Sprintf("⚔ %s ambushes you for %s damage (HP %s)! attack, defend or flee", a[2], a[3], a[4]))
 		}
+	case get(0) == "PLAYER" && get(1) == "KEY":
+		if err := saveKey(c.keyID, get(2)); err != nil {
+			return c.t.paint(cRed, "could not save your resume key: "+err.Error())
+		}
+		return c.t.paint(cGrey, "· character saved; this terminal will bring it back automatically")
 	case get(0) == "PLAYER" && get(1) == "RESPAWN":
 		return c.t.paint(cRed, "☠ You were defeated and wake up in "+get(2)+". (type look)")
 	}
@@ -587,6 +594,51 @@ const helpText = `Commands (protocol syntax such as "MOVE north" also works):
   raw <line>                   send a raw protocol line
   quit                         leave the game`
 
+// Resume keys are stored per server and per character name, so the same
+// terminal can play several characters.
+func keyFilePath() string {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(dir, "hollowmere", "keys.json")
+}
+
+func loadKeys() map[string]string {
+	keys := map[string]string{}
+	path := keyFilePath()
+	if path == "" {
+		return keys
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return keys
+	}
+	_ = json.Unmarshal(data, &keys)
+	return keys
+}
+
+func saveKey(id, key string) error {
+	path := keyFilePath()
+	if path == "" {
+		return nil
+	}
+	keys := loadKeys()
+	if keys[id] == key {
+		return nil
+	}
+	keys[id] = key
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(keys, "", "  ")
+	if err != nil {
+		return err
+	}
+	// The key is the only secret of a character: keep the file private.
+	return os.WriteFile(path, data, 0o600)
+}
+
 func isTerminal(f *os.File) bool {
 	st, err := f.Stat()
 	return err == nil && st.Mode()&os.ModeCharDevice != 0
@@ -596,6 +648,8 @@ func main() {
 	addr := flag.String("addr", "127.0.0.1:4243", "server address")
 	name := flag.String("name", "", "player name (asked if empty)")
 	noColor := flag.Bool("no-color", false, "disable colors")
+	key := flag.String("key", "", "resume key (default: the one saved for this server and name)")
+	newChar := flag.Bool("new", false, "ignore the saved key and start a new character")
 	flag.Parse()
 
 	t := &term{color: !*noColor && isTerminal(os.Stdout), prompt: "> "}
@@ -619,7 +673,15 @@ func main() {
 		*name = strings.TrimSpace(in.Text())
 	}
 	c.name = *name
-	if err := c.send("CONNECT " + *name); err != nil {
+	c.keyID = *addr + "|" + strings.ToLower(*name)
+	if *key == "" && !*newChar {
+		*key = loadKeys()[c.keyID]
+	}
+	connectLine := "CONNECT " + *name
+	if *key != "" {
+		connectLine += " " + *key
+	}
+	if err := c.send(connectLine); err != nil {
 		fmt.Fprintln(os.Stderr, proto.ErrSendFailed.Error())
 		os.Exit(1)
 	}

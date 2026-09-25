@@ -22,6 +22,7 @@ import (
 	"hollowmere/internal/game"
 	"hollowmere/internal/logs"
 	"hollowmere/internal/session"
+	"hollowmere/internal/store"
 	"hollowmere/internal/tcpd"
 	"hollowmere/internal/web"
 	"hollowmere/internal/webd"
@@ -46,6 +47,9 @@ func main() {
 		origins  = flag.String("origins", env("TAP_ORIGINS", ""), "comma-separated hosts allowed to open a WebSocket")
 		trustPrx = flag.Bool("trust-proxy", env("TAP_TRUST_PROXY", "") == "1", "read the client IP from proxy headers")
 		metricsT = flag.String("metrics-token", env("TAP_METRICS_TOKEN", ""), "require ?token= on /metrics")
+		dbPath   = flag.String("db", env("TAP_DB", "state/hollowmere.db"), "character database (\"none\" disables persistence)")
+		autosave = flag.Duration("autosave", 60*time.Second, "how often connected characters are saved")
+		backupTo = flag.String("backup", "", "copy the database to this path and exit")
 		check    = flag.Bool("check", false, "validate the world file and exit")
 		seed     = flag.Int64("seed", 0, "random seed (0 = time based)")
 	)
@@ -64,6 +68,23 @@ func main() {
 	w := logs.NewAsyncWriter(outs...)
 	defer w.Close()
 	log := logs.New(w, logs.ParseLevel(*logLevel))
+
+	// Backup mode: used by cron, safe to run while the server plays.
+	if *backupTo != "" {
+		st, err := store.Open(*dbPath)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		defer st.Close()
+		if err := st.Backup(*backupTo); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		n, _ := st.Count()
+		fmt.Fprintf(os.Stderr, "backup written to %s (%d characters)\n", *backupTo, n)
+		return
+	}
 
 	world, err := game.LoadWorld(*worldDir)
 	if err != nil {
@@ -84,6 +105,25 @@ func main() {
 		*seed = time.Now().UnixNano()
 	}
 	g := game.New(world, log, *seed)
+
+	// Persistence: characters come back through their resume key. Without
+	// a database the world simply resets when the server restarts.
+	stopSaver := make(chan struct{})
+	if *dbPath != "none" {
+		st, err := store.Open(*dbPath)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		defer st.Close()
+		n, _ := st.Count()
+		log.Info("store_opened", "path", st.Path(), "characters", n, "autosave", autosave.String())
+		g.SetStore(st)
+		go g.AutoSave(*autosave, stopSaver)
+	} else {
+		log.Warn("store_disabled", "reason", "-db none")
+	}
+
 	mgr := session.NewManager(g, log, session.DefaultConfig(), session.NewMetrics())
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -136,7 +176,11 @@ func main() {
 
 	// Let players know, then give the writers a moment to flush.
 	g.Announce("SHUTDOWN server restarting, come back in a minute")
+	close(stopSaver)
 	mgr.CloseAll("server_shutdown")
+	if n := g.SaveAll(); n > 0 {
+		log.Info("final_save", "players", n)
+	}
 	shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = httpSrv.Shutdown(shutCtx)

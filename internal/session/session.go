@@ -380,11 +380,17 @@ func (s *Session) handleLine(line string) bool {
 			s.reply(proto.ErrAlreadyConnected.Error(), cmd.Name)
 			return true
 		}
-		if len(cmd.Word) != 1 {
+		// CONNECT <name> [resume key] — the key is a v2 extension; other
+		// groups' clients send the name alone and get a new character.
+		if len(cmd.Word) < 1 || len(cmd.Word) > 2 {
 			s.reply(proto.ErrInvalidName.Error(), cmd.Name)
 			return true
 		}
-		p, perr := s.mgr.game.Connect(cmd.Word[0], s.conn.RemoteIP(), s)
+		var key string
+		if len(cmd.Word) == 2 {
+			key = cmd.Word[1]
+		}
+		p, perr := s.mgr.game.Connect(cmd.Word[0], key, s.conn.RemoteIP(), s)
 		if perr != nil {
 			s.reply(perr.Error(), cmd.Name)
 			return true
@@ -394,6 +400,10 @@ func (s *Session) handleLine(line string) bool {
 		s.name = p.Name
 		s.mu.Unlock()
 		s.logReply("OK connected", cmd.Name)
+		if p.Key != "" {
+			// The client stores this to come back as the same character.
+			s.Send("EVT PLAYER KEY " + p.Key)
+		}
 		return true
 
 	case s.player == nil:

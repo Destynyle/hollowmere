@@ -325,6 +325,7 @@ type statusReply struct {
 	Attack    int     `json:"attack"`
 	Defense   int     `json:"defense"`
 	Room      string  `json:"room"`
+	Played    string  `json:"played"`
 }
 
 func (g *Game) cmdStatus(p *Player, c proto.Command) (string, *proto.Error) {
@@ -332,6 +333,7 @@ func (g *Game) cmdStatus(p *Player, c proto.Command) (string, *proto.Error) {
 	rep := statusReply{
 		HP: p.HP, MaxHP: p.MaxHP, Status: cond, Condition: cond,
 		Defending: p.Defending, Attack: g.playerAttack(p), Defense: g.playerDefense(p), Room: p.Room,
+		Played: PlayedString(p.played + time.Since(p.joined)),
 	}
 	if p.Target != "" {
 		n := g.npcs[p.Target]

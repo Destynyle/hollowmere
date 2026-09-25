@@ -61,7 +61,50 @@ Flags, or the matching environment variables (handy in Docker):
 | `-origins` | `TAP_ORIGINS` | same-origin only | hosts allowed to open a WebSocket |
 | `-trust-proxy` | `TAP_TRUST_PROXY=1` | off | read the client IP from `CF-Connecting-IP` / `X-Forwarded-For` |
 | `-metrics-token` | `TAP_METRICS_TOKEN` | — | require `?token=` on `/metrics` |
+| `-db` | `TAP_DB` | `state/hollowmere.db` | character database; `none` disables persistence |
+| `-autosave` | — | `60s` | how often connected characters are saved |
+| `-backup <path>` | — | — | copy the database and exit (for cron) |
 | `-check` | — | — | validate the world file and exit |
+
+## Characters, without accounts
+
+There is no sign-up, no password and no e-mail. On the first visit the
+server creates a character and sends its **resume key** — 128 random bits —
+to that client only:
+
+```text
+C: CONNECT marin
+S: OK connected
+S: EVT PLAYER KEY jv4c2hq7t3m6k9x1b8n5r0wzye
+```
+
+The client stores the key (browser local storage, or
+`~/.config/hollowmere/keys.json` for the CLI) and sends it next time:
+
+```text
+C: CONNECT marin jv4c2hq7t3m6k9x1b8n5r0wzye
+S: OK connected          ← same room, health, inventory and quests
+```
+
+- The key is the character's only secret: whoever holds it plays it. The web
+  client keeps it masked, with **Copy** to save it elsewhere and **New** to
+  forget it and start over.
+- A name belongs to the key that created it, so nobody else can take it.
+- An unknown key is not an error: it simply starts a new character.
+- Characters are saved on disconnect, every 60 s, and on shutdown.
+- Clients from other groups send `CONNECT <name>` alone and get a fresh
+  character each time; the extra argument is a v2 extension.
+
+**What happens to carried items.** World items (herbs, potions, torches) go
+back to the room they came from, so the world stays playable for everyone
+else. Quest rewards and loot travel with the character and are recreated on
+its return — which also frees the loot slot of the enemy that dropped it.
+Nothing is duplicated.
+
+**Backups.** `deploy/backup.sh` runs `hollowmere -backup`, which uses
+SQLite's `VACUUM INTO`: a consistent copy while players keep playing. It
+compresses the copy and keeps two weeks of history. The database lives in
+`state/` (the Docker volume), together with the logs.
 
 ## Endpoints
 
@@ -87,7 +130,7 @@ Flags, or the matching environment variables (handy in Docker):
 
 1. ~~Socle: engine ported, Docker, tests~~
 2. ~~Transport: WebSocket + web client served by the server, TCP kept~~
-3. Persistence: SQLite, resume key, periodic save
+3. ~~Persistence: SQLite, resume key, periodic save~~
 4. Content: bigger world, extended format, dialogue choices, quest chains
 5. Progression: XP, levels, stats, worn equipment, skills
 6. Social: private messages, friends, leaderboard, trading, group dungeons

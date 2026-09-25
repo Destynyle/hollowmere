@@ -56,7 +56,7 @@ func newTestGame(t *testing.T) *Game {
 func join(t *testing.T, g *Game, name string) (*Player, *recorder) {
 	t.Helper()
 	rec := &recorder{}
-	p, err := g.Connect(name, "127.0.0.1", rec)
+	p, err := g.Connect(name, "", "127.0.0.1", rec)
 	if err != nil {
 		t.Fatalf("connect %s: %v", name, err)
 	}
@@ -131,10 +131,10 @@ func TestValidationRejectsBadReferences(t *testing.T) {
 func TestNameInUseAndPresence(t *testing.T) {
 	g := newTestGame(t)
 	_, alice := join(t, g, "alice")
-	if _, err := g.Connect("ALICE", "x", &recorder{}); err != proto.ErrNameInUse {
+	if _, err := g.Connect("ALICE", "", "x", &recorder{}); err != proto.ErrNameInUse {
 		t.Fatalf("expected NAME_IN_USE, got %v", err)
 	}
-	if _, err := g.Connect("bad name!", "x", &recorder{}); err != proto.ErrInvalidName {
+	if _, err := g.Connect("bad name!", "", "x", &recorder{}); err != proto.ErrInvalidName {
 		t.Fatalf("expected INVALID_NAME, got %v", err)
 	}
 	bob, bobRec := join(t, g, "bób")

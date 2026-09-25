@@ -84,6 +84,17 @@ function send(line, cb, quiet = false) {
   state.ws.send(line);
 }
 
+// The resume key is this character's only secret: no account, no password.
+function loadKey() {
+  try { return localStorage.getItem("tap-key") || ""; } catch { return ""; }
+}
+function storeKey(key) {
+  try { localStorage.setItem("tap-key", key); } catch { /* private window */ }
+  const field = $("#resume-key");
+  field.value = key;
+  field.placeholder = "";
+}
+
 function connect(name) {
   disconnectLocal();
   state.me = name;
@@ -104,7 +115,8 @@ function connect(name) {
   ws.onopen = () => {
     state.retryDelay = 1000;
     // The greeting arrives first; CONNECT can be queued right away.
-    send("CONNECT " + name, (ok, payload) => {
+    const key = loadKey();
+    send("CONNECT " + name + (key ? " " + key : ""), (ok, payload) => {
       if (!ok) {
         log("Cannot join: " + payload, "err");
         state.wantConnection = false;   // a bad name is not worth retrying
@@ -230,7 +242,10 @@ function onEvent(payload) {
       refresh("QUESTS");
       break;
     case "PLAYER":
-      if (type === "AMBUSH") {
+      if (type === "KEY") {
+        storeKey(parts[2]);
+        log("Character saved. Your resume key brings it back on any device.", "ok");
+      } else if (type === "AMBUSH") {
         appendFeed($("#log"), [`⚔ ${nameOf(parts[2])} ambushes you for ${parts[3]} damage!`], "combat");
         scheduleRefresh(true);
       } else if (type === "RESPAWN") {
@@ -573,6 +588,33 @@ function init() {
   $("#btn-use-name").addEventListener("click", () => { const v = valueOf("#item-name"); if (v) send("USE " + v); });
   $("#btn-defend").addEventListener("click", () => send("DEFEND"));
   $("#btn-flee").addEventListener("click", () => send("FLEE"));
+
+  $("#resume-key").value = loadKey();
+  $("#btn-show-key").addEventListener("click", () => {
+    const f = $("#resume-key");
+    f.type = f.type === "password" ? "text" : "password";
+  });
+  $("#btn-copy-key").addEventListener("click", async () => {
+    const key = $("#resume-key").value;
+    if (!key) { log("No key yet — join the world first.", "err"); return; }
+    try {
+      await navigator.clipboard.writeText(key);
+      log("Resume key copied to the clipboard.", "ok");
+    } catch {
+      $("#resume-key").type = "text";
+      $("#resume-key").select();
+      log("Copy it by hand: the browser refused clipboard access.", "err");
+    }
+  });
+  $("#btn-new-char").addEventListener("click", () => {
+    if (!confirm("Forget this key and start a new character? The old one is lost unless you copied its key.")) return;
+    try { localStorage.removeItem("tap-key"); } catch { /* ignore */ }
+    $("#resume-key").value = "";
+    $("#resume-key").placeholder = "a new key will arrive when you join";
+    disconnectLocal();
+    state.wantConnection = false;
+    log("Key forgotten. Pick a name and join to create a new character.", "ok");
+  });
 
   $("#btn-group-create").addEventListener("click", () => send("GROUP CREATE"));
   $("#btn-group-invite").addEventListener("click", () => { const v = valueOf("#group-player"); if (v) send("GROUP INVITE " + v); });

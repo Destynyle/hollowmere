@@ -64,6 +64,7 @@ type QuestState struct {
 // Player is a connected, authenticated player.
 type Player struct {
 	Name      string
+	Key       string // resume key; "" when persistence is disabled
 	IP        string
 	Sink      Sink
 	Room      string
@@ -76,6 +77,8 @@ type Player struct {
 	Quests    map[string]*QuestState
 	QuestList []string
 	talkIndex map[string]int
+	joined    time.Time
+	played    time.Duration
 }
 
 // Group is a set of players sharing a chat channel.
@@ -97,7 +100,9 @@ type Game struct {
 	npcs      map[string]*NPC
 	players   map[string]*Player // key: lower-cased name
 	groups    map[string]*Group
+	byKey     map[string]*Player // connected players, by resume key
 	idCount   map[string]int
+	store     Store
 	nextGroup int
 	// Schedule runs f after d. Tests replace it to control time.
 	Schedule func(d time.Duration, f func())
@@ -114,6 +119,7 @@ func New(w *WorldData, log *slog.Logger, seed int64) *Game {
 		npcs:    map[string]*NPC{},
 		players: map[string]*Player{},
 		groups:  map[string]*Group{},
+		byKey:   map[string]*Player{},
 		idCount: map[string]int{},
 		Schedule: func(d time.Duration, f func()) {
 			time.AfterFunc(d, f)
@@ -327,21 +333,37 @@ func (g *Game) PlayerCount() int {
 // ---------------------------------------------------------------------------
 // Session lifecycle.
 
-// Connect authenticates a new player. On success the player is placed in the
-// start room and the reply "OK connected" has already been sent to sink.
-func (g *Game) Connect(name, ip string, sink Sink) (*Player, *proto.Error) {
+// Connect authenticates a new player. The resume key is optional: an empty
+// or unknown key creates a fresh character and a new key, which the caller
+// hands back to the client. On success the player is placed in the world
+// and "OK connected" has already been sent to sink.
+func (g *Game) Connect(name, key, ip string, sink Sink) (*Player, *proto.Error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if !proto.ValidUsername(name) {
 		return nil, proto.ErrInvalidName
 	}
-	key := strings.ToLower(name)
-	if _, taken := g.players[key]; taken {
+	lower := strings.ToLower(name)
+	if _, taken := g.players[lower]; taken {
 		return nil, proto.ErrNameInUse
 	}
+	if key != "" {
+		if _, online := g.byKey[key]; online {
+			return nil, proto.ErrAlreadyConnected
+		}
+	}
+	saved, perr := g.loadForConnect(name, key)
+	if perr != nil {
+		return nil, perr
+	}
+	if saved == nil {
+		key = NewKey() // new character, or a key nobody knows any more
+	}
+
 	max := g.W.Settings.PlayerMaxHP
 	p := &Player{
 		Name:      name,
+		Key:       key,
 		IP:        ip,
 		Sink:      sink,
 		Room:      g.W.StartRoom,
@@ -349,14 +371,24 @@ func (g *Game) Connect(name, ip string, sink Sink) (*Player, *proto.Error) {
 		MaxHP:     max,
 		Quests:    map[string]*QuestState{},
 		talkIndex: map[string]int{},
+		joined:    time.Now(),
 	}
-	g.players[key] = p
+	if saved != nil {
+		g.restore(p, saved)
+	}
+	g.players[lower] = p
+	if key != "" {
+		g.byKey[key] = p
+	}
 	r := g.rooms[p.Room]
 	r.Players = append(r.Players, p.Name)
 	g.send(p, "OK connected")
-	g.log.Info("player_joined", "player", name, "ip", ip, "room", p.Room, "online", len(g.players))
+	g.persist(p) // claims the name, and saves a brand new character at once
+	g.log.Info("player_joined", "player", name, "ip", ip, "room", p.Room,
+		"returning", saved != nil, "online", len(g.players))
 	g.broadcastRoom(p.Room, p.Name, "EVT ROOM PRESENCE ENTER "+p.Name)
 	g.broadcastAll(g.statsEvent())
+	g.ambush(p) // an aggressive enemy may be waiting where you logged out
 	return p, nil
 }
 
@@ -364,15 +396,23 @@ func (g *Game) Connect(name, ip string, sink Sink) (*Player, *proto.Error) {
 func (g *Game) Disconnect(p *Player, reason string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	key := strings.ToLower(p.Name)
-	if g.players[key] != p {
+	lower := strings.ToLower(p.Name)
+	if g.players[lower] != p {
 		return
 	}
 	room := p.Room
-	// Carried items fall on the floor so nothing disappears from the world.
-	dropped := append([]string(nil), p.Inventory...)
-	for _, id := range dropped {
-		g.placeItem(g.items[id], room)
+	g.persist(p)
+	var dropped []string
+	if g.store == nil {
+		// Without persistence, carried items fall on the floor so nothing
+		// disappears from the world.
+		dropped = append([]string(nil), p.Inventory...)
+		for _, id := range dropped {
+			g.placeItem(g.items[id], room)
+		}
+	} else {
+		// Saved characters keep their belongings; world items go home.
+		g.releaseItems(p)
 	}
 	target := p.Target
 	p.Target = ""
@@ -382,11 +422,12 @@ func (g *Game) Disconnect(p *Player, reason string) {
 		g.removeFromGroup(p)
 	}
 	for _, other := range g.groups {
-		delete(other.Invited, key)
+		delete(other.Invited, lower)
 	}
 	r := g.rooms[room]
 	r.Players = removeString(r.Players, p.Name)
-	delete(g.players, key)
+	delete(g.players, lower)
+	delete(g.byKey, p.Key)
 	p.Sink = nil
 
 	g.log.Info("player_left", "player", p.Name, "ip", p.IP, "room", room, "reason", reason, "dropped_items", dropped, "online", len(g.players))

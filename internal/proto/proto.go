@@ -62,6 +62,7 @@ var (
 	ErrItemNotUsable    = &Error{409, "ITEM_NOT_USABLE"}
 	ErrRateLimited      = &Error{429, "RATE_LIMITED"}
 	ErrServerFull       = &Error{902, "SERVER_FULL"}
+	ErrStorage          = &Error{903, "STORAGE_UNAVAILABLE"}
 )
 
 // Command is a parsed client command line.

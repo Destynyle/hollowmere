@@ -15,13 +15,14 @@ services:
       TAP_TCP: "0.0.0.0:4243"
       TAP_LOG_LEVEL: "info"
       TAP_LOG_FILE: "/data/server.log"
+      TAP_DB: "/data/hollowmere.db"
       # Hosts allowed to open a WebSocket (same-origin is always allowed).
       TAP_ORIGINS: "${TAP_ORIGINS:-}"
       # Set to 1 only when a proxy or tunnel you control sits in front.
       TAP_TRUST_PROXY: "${TAP_TRUST_PROXY:-}"
       TAP_METRICS_TOKEN: "${TAP_METRICS_TOKEN:-}"
     volumes:
-      # Logs, and later the SQLite save file.
+      # Logs, the SQLite save file and its backups.
       - ./state:/data
     # A small box is the target: keep the game from eating the machine.
     deploy:
