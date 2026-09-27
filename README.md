@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/Destynyle/hollowmere/actions/workflows/ci.yml/badge.svg)](https://github.com/Destynyle/hollowmere/actions/workflows/ci.yml)
 
+**English** · [Français](README.fr.md)
+
 A shared world of text you can actually play: a multiplayer text adventure
 (MUD) speaking RFC 42TAP, with a browser client over WebSocket and the raw
 TCP transport kept for terminal players.
@@ -122,7 +124,7 @@ Flags, or the matching environment variables (handy in Docker):
 ## The world
 
 The world lives in `data/world/`, one JSON file per zone (`village`,
-`crypt`, `forest`, `mines`, `marsh`, `hill`), merged at load time. Each file
+`crypt`, `forest`, `mines`, `marsh`, `hill`, `deep`), merged at load time. Each file
 may hold `rooms`, `items`, `npcs` and `quests`; exits, spawns and quests
 freely reference ids from other zones. An id may be defined only once, and
 the header (`name`, `start_room`, `safe_room`, `settings`) sits in
@@ -297,7 +299,6 @@ in the `modlog` table. Details in `deploy/README.md`.
 
 Production setup (tunnel, backups, restore, supervision, checklist):
 **`deploy/README.md`**.
-
 
 - **Logs** are JSON lines on stdout (and `TAP_LOG_FILE`), written by a
   background goroutine that drops records rather than slowing the game.
