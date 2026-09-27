@@ -1,0 +1,313 @@
+{
+  "rooms": {
+    "loc.square": {
+      "name": "Village Square",
+      "description": "A bustling square with cobblestone paths and a dry fountain. Roads lead in every direction, and a crooked hut leans to the northeast.",
+      "safe": true,
+      "exits": { "north": "loc.bakery", "east": "loc.market", "west": "loc.chapel", "south": "loc.gate", "northeast": "loc.herbalist" },
+      "items": ["item.torch"],
+      "spawns": [{ "npc": "npc.crier", "count": 1 }]
+    },
+    "loc.herbalist": {
+      "name": "Wenna's Hut",
+      "description": "Bundles of drying herbs hang from every beam. Jars of murky liquid crowd the shelves, and one of them is definitely watching you.",
+      "safe": true,
+      "exits": { "southwest": "loc.square" },
+      "items": ["item.herbs"],
+      "spawns": [{ "npc": "npc.herbalist", "count": 1 }]
+    },
+    "loc.bakery": {
+      "name": "Village Bakery",
+      "description": "A warm bakery filled with the scent of fresh bread. A door opens east onto the tavern yard.",
+      "safe": true,
+      "exits": { "south": "loc.square", "east": "loc.tavern" },
+      "items": ["item.flour_sack"],
+      "spawns": [{ "npc": "npc.baker", "count": 1 }]
+    },
+    "loc.tavern": {
+      "name": "The Rusty Tankard",
+      "description": "A cozy tavern full of laughter. A bard tunes a lute by the fire. A trapdoor behind the bar leads down, and a back door opens north onto the hill path.",
+      "safe": true,
+      "exits": { "west": "loc.bakery", "south": "loc.market", "north": "loc.hill_path", "down": "loc.cellar" },
+      "items": ["item.ale"],
+      "spawns": [{ "npc": "npc.bard", "count": 1 }, { "npc": "npc.innkeeper", "count": 1 }]
+    },
+    "loc.cellar": {
+      "name": "Tavern Cellar",
+      "description": "Barrels, cobwebs and the scrabbling of too many claws. Somebody has been gnawing at the cheese wheels.",
+      "exits": { "up": "loc.tavern" },
+      "items": ["item.ale"],
+      "spawns": [{ "npc": "npc.rat", "count": 3 }]
+    },
+    "loc.market": {
+      "name": "Market Street",
+      "description": "Colourful stalls line the street. The ring of a hammer comes from the east, and the smell of the lake drifts up a lane to the south.",
+      "safe": true,
+      "exits": { "north": "loc.tavern", "west": "loc.square", "east": "loc.smithy", "south": "loc.lakeside" },
+      "items": ["item.leather_vest"],
+      "spawns": [{ "npc": "npc.merchant", "count": 1 }]
+    },
+    "loc.smithy": {
+      "name": "Ironhand Smithy",
+      "description": "A sweltering forge. Weapons hang on every wall. The only way out is back west.",
+      "safe": true,
+      "exits": { "west": "loc.market" },
+      "items": ["item.anvil"],
+      "spawns": [{ "npc": "npc.smith", "count": 1 }]
+    },
+    "loc.chapel": {
+      "name": "Old Chapel",
+      "description": "Candles flicker in a quiet chapel. Wounded adventurers wake up here.",
+      "safe": true,
+      "exits": { "east": "loc.square", "south": "loc.graveyard" },
+      "items": ["item.healing_potion"],
+      "spawns": [{ "npc": "npc.priest", "count": 1 }]
+    },
+    "loc.gate": {
+      "name": "South Gate",
+      "description": "The village palisade ends at a heavy wooden gate. A guard keeps watch over the forest road.",
+      "safe": true,
+      "exits": { "north": "loc.square", "west": "loc.graveyard", "south": "loc.forest" },
+      "spawns": [{ "npc": "npc.guard", "count": 1 }]
+    }
+  },
+
+  "items": {
+    "item.torch": { "name": "Old Torch", "description": "A stick wrapped in oily rags. Better than nothing in a fight.", "obtainable": true, "attack": 2 },
+    "item.flour_sack": { "name": "Flour Sack", "description": "A heavy sack of flour, nailed to the counter.", "obtainable": false },
+    "item.ale": { "name": "Frothy Ale", "description": "A refreshing drink that restores a little energy.", "obtainable": true, "heal": 10 },
+    "item.leather_vest": { "name": "Leather Vest", "description": "Worn but sturdy leather armor.", "obtainable": true, "defense": 3 },
+    "item.anvil": { "name": "Iron Anvil", "description": "Far too heavy to carry.", "obtainable": false },
+    "item.healing_potion": { "name": "Healing Potion", "description": "A red potion that mends wounds.", "obtainable": true, "heal": 40 },
+    "item.greater_potion": { "name": "Greater Potion", "description": "Wenna's strongest brew. It tastes of moonlight and regret.", "obtainable": true, "heal": 80 },
+    "item.herbs": { "name": "Healing Herbs", "description": "Fragrant leaves prized by bakers and healers alike.", "obtainable": true, "heal": 5 },
+    "item.honey_bread": { "name": "Honey Bread", "description": "The baker's famous loaf. Restores a lot of health.", "obtainable": true, "heal": 60 },
+    "item.sealed_letter": { "name": "Sealed Letter", "description": "A letter sealed with the guard captain's wax.", "obtainable": true },
+    "item.blessed_amulet": { "name": "Blessed Amulet", "description": "A silver amulet that wards off harm.", "obtainable": true, "defense": 4, "slot": "amulet" },
+    "item.iron_sword": { "name": "Iron Sword", "description": "A well-balanced blade from the Ironhand forge.", "obtainable": true, "attack": 9, "min_level": 2 },
+    "item.gold_coin": { "name": "Gold Coin", "description": "Shiny and heavy.", "obtainable": true },
+    "item.sunblade": { "name": "Sunblade", "description": "Sir Edric's sword, reforged and blessed. It hums when the dark is near.", "obtainable": true, "attack": 18, "min_level": 6 }
+  },
+
+  "npcs": {
+    "npc.crier": {
+      "name": "Town Crier",
+      "description": "A loud man with a bell.",
+      "role": "dialogue",
+      "dialogue": [
+        "Hear ye! The baker needs herbs, the smith needs a hero!",
+        "Wolves in the forest, goblins in the cave. Mind the south road!",
+        "Wounded? The chapel to the west will patch you up.",
+        "Fever in the lower streets! Old Wenna, northeast of the square, is looking for help.",
+        "Lights in the old watchtower again. Nobody has lived there for a hundred years."
+      ]
+    },
+    "npc.baker": {
+      "name": "Baker Mira",
+      "description": "Flour up to her elbows.",
+      "role": "quest_giver",
+      "dialogue": ["Welcome to my bakery!", "My honey bread needs healing herbs, the ones that grow south of the gate."]
+    },
+    "npc.bard": {
+      "name": "Lorin the Bard",
+      "description": "A bard with more songs than coins.",
+      "role": "dialogue",
+      "dialogue": [
+        "Sit, friend, and hear the ballad of the goblin king!",
+        "They say a lucky strike can hit twice as hard.",
+        "When the fight turns sour, DEFEND. Or run - no shame in FLEE.",
+        "Some folk only open up if you pick your words. TALK, then SAY the number of your answer."
+      ]
+    },
+    "npc.innkeeper": {
+      "name": "Hilde the Innkeeper",
+      "description": "Broad shoulders, a clean apron and a very heavy ladle.",
+      "role": "quest_giver",
+      "dialogue": ["Ale's on the bar. Pay when you're rich.", "Something's eating my cellar alive. Rats the size of dogs!"]
+    },
+    "npc.rat": {
+      "name": "Cellar Rat",
+      "description": "Fat, bold and not at all afraid of you.",
+      "role": "enemy",
+      "hostile": true,
+      "dialogue": ["*squeak*"],
+      "stats": { "hp": 10, "attack": 3, "defense": 0, "speed": 7 }
+    },
+    "npc.merchant": {
+      "name": "Shop Keeper",
+      "description": "A friendly merchant eager to talk.",
+      "role": "merchant",
+      "dialogue": ["Welcome to my stall!", "That leather vest? Take it, it's been here for years."]
+    },
+    "npc.smith": {
+      "name": "Smith Borga",
+      "description": "Arms like tree trunks.",
+      "role": "quest_giver",
+      "dialogue": [
+        "The goblin chief keeps raiding my ore carts.",
+        "Bring me proof he is gone and I'll forge you a real sword.",
+        "They say the old dwarves left a stone guardian under the mines. Its heart would make a fine blade."
+      ]
+    },
+    "npc.priest": {
+      "name": "Father Aldric",
+      "description": "An old priest with kind eyes.",
+      "role": "quest_giver",
+      "dialogue": ["Rest here, child. The light protects.", "The captain promised me news. Have you seen him at the gate?"],
+      "dialogue_tree": {
+        "start": {
+          "text": "Rest here, child. The light protects.",
+          "options": [
+            { "text": "The captain gave me a letter for you.", "next": "", "quest": "q.deliver_letter", "if": { "quest": "q.deliver_letter", "status": "ready" } },
+            { "text": "What are those lights in the watchtower?", "next": "tower", "if": { "quest": "q.hollow_king", "status": "none" } },
+            { "text": "About the Hollow King...", "next": "", "quest": "q.hollow_king", "if": { "quest": "q.hollow_king", "status": "active" } },
+            { "text": "Is the village safe now?", "next": "after", "if": { "quest": "q.hollow_king", "status": "completed" } },
+            { "text": "Goodbye, Father.", "next": "" }
+          ]
+        },
+        "tower": {
+          "text": "A hundred years ago a warlock called himself the Hollow King and ruled from that tower. Sir Edric of the hill watch sealed him away and was buried beneath our graveyard. If the lights are back, the seal is failing.",
+          "options": [
+            { "text": "Then I will finish what Edric started.", "next": "blessing", "quest": "q.hollow_king" },
+            { "text": "I'm not ready for that.", "next": "not_ready" }
+          ]
+        },
+        "not_ready": {
+          "text": "Nobody ever is. Help the village first: the smith, the guard, the baker. Come back when your arm is stronger."
+        },
+        "blessing": {
+          "text": "Then go below the graveyard and speak with what remains of Edric. The dead remember what the living forgot."
+        },
+        "after": {
+          "text": "The lights are out and the tower is quiet. The village owes you more than it can say, so I will just say thank you."
+        }
+      }
+    },
+    "npc.guard": {
+      "name": "Village Guard",
+      "description": "A stern-looking guard watching the forest road.",
+      "role": "quest_giver",
+      "dialogue": ["Stay safe, traveler.", "The roads can be dangerous.", "Bandits on the old road west of the forest. Somebody should have a word with them."]
+    },
+    "npc.herbalist": {
+      "name": "Old Wenna",
+      "description": "A tiny woman with ink-stained fingers and a nose for trouble.",
+      "role": "quest_giver",
+      "dialogue_tree": {
+        "start": {
+          "text": "Ah, a new face. Mind the jars, some of them bite.",
+          "options": [
+            { "text": "You look worried.", "next": "worried", "if": { "quest": "q.moonpetal", "status": "none" } },
+            { "text": "About the moonpetals...", "next": "", "quest": "q.moonpetal", "if": { "quest": "q.moonpetal", "status": "active" } },
+            { "text": "How is the fever?", "next": "fever_gone", "if": { "quest": "q.moonpetal", "status": "completed" } },
+            { "text": "What do you sell?", "next": "wares" },
+            { "text": "Goodbye.", "next": "" }
+          ]
+        },
+        "worried": {
+          "text": "The fever is back in the lower streets. I need moonpetals, but only Elder Thorn in the deep woods knows where they bloom these days.",
+          "options": [
+            { "text": "I'll find him for you.", "next": "thanks", "quest": "q.moonpetal" },
+            { "text": "Not my problem.", "next": "cold" }
+          ]
+        },
+        "thanks": {
+          "text": "Bless you. Thorn lives in the grove west of the deep woods: take the old road past the forest, then head south. Tell him Wenna sent you."
+        },
+        "cold": {
+          "text": "Hmph. The fever won't ask whether it's your problem."
+        },
+        "wares": {
+          "text": "Nothing for coin, dear. Herbs are for the sick, not the curious.",
+          "options": [
+            { "text": "Back to what you were saying.", "next": "start" }
+          ]
+        },
+        "fever_gone": {
+          "text": "Gone, thanks to you. The children are running about again, which is its own kind of fever."
+        }
+      }
+    }
+  },
+
+  "quests": {
+    "q.fetch_herbs": {
+      "title": "Herbs for the Baker",
+      "description": "Bring 3 Healing Herbs to Baker Mira.",
+      "giver": "npc.baker",
+      "type": "fetch",
+      "target": "item.herbs",
+      "count": 3,
+      "reward": { "xp": 60, "items": ["item.honey_bread"], "max_hp": 10 }
+    },
+    "q.deliver_letter": {
+      "title": "The Captain's Letter",
+      "description": "Deliver the guard's sealed letter to Father Aldric in the chapel.",
+      "giver": "npc.guard",
+      "turn_in": "npc.priest",
+      "type": "deliver",
+      "target": "item.sealed_letter",
+      "count": 1,
+      "give_on_start": ["item.sealed_letter"],
+      "reward": { "xp": 60, "items": ["item.blessed_amulet"], "heal_full": true }
+    },
+    "q.defeat_goblin": {
+      "title": "Goblin Trouble",
+      "description": "Defeat the Goblin Chief in the cave south of the forest, then report to Smith Borga.",
+      "giver": "npc.smith",
+      "type": "kill",
+      "target": "npc.goblin",
+      "count": 1,
+      "requires": ["q.deliver_letter"],
+      "reward": { "xp": 150, "items": ["item.iron_sword"], "max_hp": 20, "heal_full": true }
+    },
+    "q.rat_cellar": {
+      "title": "Rats in the Cellar",
+      "description": "Clear the three rats out of the Rusty Tankard's cellar.",
+      "giver": "npc.innkeeper",
+      "type": "kill",
+      "target": "npc.rat",
+      "count": 3,
+      "reward": { "xp": 60, "items": ["item.ale", "item.ale", "item.gold_coin"] }
+    },
+    "q.road_bandits": {
+      "title": "Toll of the Old Road",
+      "description": "A bandit is robbing travellers on the old road west of the forest. Deal with them and report back to the guard.",
+      "giver": "npc.guard",
+      "type": "kill",
+      "target": "npc.bandit",
+      "count": 1,
+      "requires": ["q.deliver_letter"],
+      "reward": { "xp": 120, "items": ["item.gold_coin", "item.healing_potion"], "max_hp": 10 }
+    },
+    "q.moonpetal": {
+      "title": "The Moonpetal Cure",
+      "description": "Old Wenna needs moonpetals to cure the fever.",
+      "giver": "npc.herbalist",
+      "steps": [
+        { "description": "Ask Elder Thorn, in the grove west of the deep woods, where moonpetals bloom.", "type": "talk", "target": "npc.druid" },
+        { "description": "Gather 2 Moonpetals and bring them to Wenna.", "type": "fetch", "target": "item.moonpetal", "count": 2 }
+      ],
+      "reward": { "xp": 150,
+        "items": ["item.greater_potion"],
+        "max_hp": 10,
+        "bonus": [
+          { "if": { "flag": "thorn_respect" }, "items": ["item.greater_potion"], "message": "Wenna smiles: \"Thorn says you took only what you needed. Have another.\"" }
+        ]
+      }
+    },
+    "q.hollow_king": {
+      "title": "The Hollow King",
+      "description": "The seal on the watchtower is failing. Finish what Sir Edric started.",
+      "giver": "npc.priest",
+      "requires": ["q.defeat_goblin"],
+      "steps": [
+        { "description": "Find Sir Edric's shade in the crypt below the graveyard and speak with it.", "type": "talk", "target": "npc.ghost" },
+        { "description": "Destroy the Barrow Wight guarding Edric's tomb.", "type": "kill", "target": "npc.wight" },
+        { "description": "Climb the watchtower on the hill and defeat the Hollow King.", "type": "kill", "target": "npc.warlock" },
+        { "description": "Return to Father Aldric.", "type": "visit", "target": "loc.chapel" }
+      ],
+      "reward": { "xp": 600, "items": ["item.sunblade"], "max_hp": 30, "heal_full": true }
+    }
+  }
+}

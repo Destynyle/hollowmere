@@ -17,10 +17,13 @@ const state = {
   room: null,
   me: "",
   scope: "GLOBAL",
-  unread: { GLOBAL: 0, ROOM: 0, GROUP: 0 },
+  unread: { GLOBAL: 0, ROOM: 0, GROUP: 0, PRIVATE: 0 },
+  trade: null,          // open trade as the server describes it
   inCombat: false,
   refreshTimer: null,
   asked: {},            // ids already sent to INSPECT
+  items: {},            // id -> INSPECT details (slot, bonuses)
+  equipped: {},         // slot -> item id
 };
 
 // ---------------------------------------------------------------- helpers
@@ -102,7 +105,8 @@ function connect(name) {
   setConn("connecting…", false);
   let ws;
   try {
-    ws = new WebSocket(wsURL());
+    // The static demo (GitHub Pages) runs the server in the page instead.
+    ws = window.HollowmereTransport ? new window.HollowmereTransport() : new WebSocket(wsURL());
   } catch (e) {
     setConn("offline", false);
     log("Cannot open a connection: " + e.message, "err");
@@ -203,6 +207,16 @@ function onEvent(payload) {
     return;
   }
   switch (scope) {
+    case "PRIVATE":
+      addChat("PRIVATE", parts[2] || "?", parts.slice(3).join(" "));
+      break;
+    case "FRIEND":
+      log(`Your friend ${parts[2]} is ${type === "ONLINE" ? "online" : "offline"}.`, "evt");
+      refresh("FRIEND LIST");
+      break;
+    case "TRADE":
+      onTradeEvent(type, parts, payload);
+      break;
     case "ROOM":
       if (type === "PRESENCE") {
         log(`${parts[3]} ${parts[2] === "ENTER" ? "entered" : "left"} the room.`, "evt");
@@ -248,13 +262,33 @@ function onEvent(payload) {
       } else if (type === "AMBUSH") {
         appendFeed($("#log"), [`⚔ ${nameOf(parts[2])} ambushes you for ${parts[3]} damage!`], "combat");
         scheduleRefresh(true);
+      } else if (type === "XP") {
+        log(`+${parts[2]} xp (${parts[3]})`, "evt");
+        scheduleRefresh(true);
+      } else if (type === "LEVEL") {
+        log(`★ Level up! You are now level ${parts[2]}. Spend your points with +.`, "quest");
+        scheduleRefresh(true);
+      } else if (type === "EQUIP") {
+        log(`You now wear ${nameOf(parts[3])} (${parts[2]}).`, "ok");
+        scheduleRefresh(true);
       } else if (type === "RESPAWN") {
         log("☠ You were defeated and respawn in " + parts[2], "err");
         scheduleRefresh(true);
       }
       break;
     case "SERVER":
-      log("📢 " + payload.slice(7), "quest");
+      if (type === "KICK" || type === "BAN") {
+        // Reconnecting at once would only be refused, or kicked again.
+        state.wantConnection = false;
+        const why = parts.slice(2).join(" ");
+        log(`${type === "BAN" ? "You were banned" : "You were kicked"} by a moderator${why ? ": " + why : "."}`, "err");
+      } else if (type === "MUTE") {
+        log(`You are muted for ${parts[2]}${parts.length > 3 ? ": " + parts.slice(3).join(" ") : "."}`, "err");
+      } else if (type === "ANNOUNCE") {
+        log("📢 " + parts.slice(2).join(" "), "quest");
+      } else {
+        log("📢 " + payload.slice(7), "quest");
+      }
       break;
     default:
       log("Event: " + payload, "evt");
@@ -279,14 +313,51 @@ function handleReply(cmd, ok, payload, line) {
     case "LOOK": if (ok) renderLook(payload); break;
     case "INVENTORY": if (ok) renderInventory(payload); break;
     case "STATUS": if (ok) renderStatus(payload); break;
+    case "SKILLS": if (ok) renderSkills(payload); break;
+    case "TELL":
+      if (ok) {
+        const [, to, ...words] = line.split(" ");
+        addChat("PRIVATE", "→ " + to, words.join(" "));
+      }
+      break;
+    case "FRIEND":
+      if (ok && payload.startsWith("[")) renderFriends(payload);
+      else if (ok) { log("Friends: " + payload.replace("=", " "), "ok"); refresh("FRIEND LIST"); }
+      break;
+    case "TOP":
+      if (ok) renderTop(payload);
+      break;
+    case "TRADE":
+      if (ok && payload.startsWith("{")) renderTrade(tryJSON(payload));
+      else if (ok && payload.startsWith("requested=")) log(`Trade request sent to ${payload.slice(10)}.`, "ok");
+      break;
+    case "SKILL":
+      if (ok) renderCombat(payload);
+      refresh("LOOK", "STATUS", "SKILLS", "INVENTORY");
+      break;
+    case "EQUIP":
+    case "UNEQUIP":
+    case "TRAIN":
+      if (ok) {
+        const r = tryJSON(payload) || {};
+        if (cmd === "TRAIN") log(`${r.stat} is now ${r.value} (${r.points} points left)`, "ok");
+        else log(`${cmd === "EQUIP" ? "Wearing" : "Took off"} ${nameOf(r.item)} (${r.slot})`, "ok");
+      }
+      refresh("STATUS", "INVENTORY");
+      break;
     case "QUESTS": if (ok) renderQuests(payload); break;
     case "WHO": if (ok) renderWho(payload); break;
     case "TALK": if (ok) renderTalk(payload, line); break;
+    case "SAY":
+      if (ok) renderTalk(payload, line);
+      else hideDialogue();
+      break;
     case "INSPECT":
       if (ok) {
         const d = tryJSON(payload);
         if (d && d.id) {
           state.names[d.id] = d.name;
+          state.items[d.id] = d;
           log(`${d.name} (${d.id}): ${d.description}`, "ok");
           renderInventoryList();
         }
@@ -346,7 +417,7 @@ function refresh(...cmds) {
   cmds.forEach((c) => send(c, null, true));
 }
 function refreshAll() {
-  refresh("LOOK", "INVENTORY", "STATUS", "QUESTS", "WHO", "GROUP INFO");
+  refresh("LOOK", "INVENTORY", "STATUS", "SKILLS", "QUESTS", "WHO", "GROUP INFO", "FRIEND LIST");
 }
 function scheduleRefresh(all) {
   clearTimeout(state.refreshTimer);
@@ -413,7 +484,12 @@ function renderLook(payload) {
   (d.players || []).forEach((p) => {
     const li = el("li");
     li.appendChild(el("span", "name", p === state.me ? p + " (you)" : p));
-    if (p !== state.me) li.appendChild(button("Invite", () => send("GROUP INVITE " + p)));
+    if (p !== state.me) {
+      li.appendChild(button("Invite", () => send("GROUP INVITE " + p)));
+      li.appendChild(button("Trade", () => send("TRADE WITH " + p)));
+      li.appendChild(button("Whisper", () => whisper(p)));
+      li.appendChild(button("Friend", () => send("FRIEND ADD " + p)));
+    }
     players.appendChild(li);
   });
   $("#count-room").textContent = String((d.players || []).length);
@@ -426,7 +502,8 @@ function renderInventory(payload) {
   if (!Array.isArray(inv)) return log(payload);
   state.inventory = inv;
   inv.forEach((id) => {
-    if (!state.names[id] && !state.asked[id]) {
+    // Details (slot, heal) decide which buttons an item gets.
+    if (!state.items[id] && !state.asked[id]) {
       state.asked[id] = true;
       send("INSPECT " + id, null, true);
     }
@@ -441,8 +518,13 @@ function renderInventoryList() {
     const li = el("li");
     li.appendChild(el("span", "name", nameOf(id)));
     li.appendChild(el("span", "id", id));
+    const info = state.items[id] || {};
+    const worn = state.equipped[info.slot] === id;
+    if (worn) li.appendChild(el("span", "tag quest", "worn"));
+    else if (info.slot) li.appendChild(button("Equip", () => send("EQUIP " + id)));
+    if (state.trade && !(state.trade.mine || []).includes(id)) li.appendChild(button("Offer", () => send("TRADE OFFER " + id)));
     li.appendChild(button("Drop", () => send("DROP " + id)));
-    li.appendChild(button("Use", () => send("USE " + id)));
+    if (info.heal || !info.slot) li.appendChild(button("Use", () => send("USE " + id)));
     list.appendChild(li);
   });
   if (!state.inventory.length) emptyItem(list, "empty");
@@ -451,7 +533,7 @@ function renderInventoryList() {
 function setBar(fill, hp, max) {
   const pct = max > 0 ? Math.max(0, Math.min(100, (hp / max) * 100)) : 0;
   fill.style.width = pct + "%";
-  if (fill.id !== "enemy-fill") {
+  if (fill.id === "hp-fill") { // only health turns amber, then red
     fill.style.backgroundColor = pct > 60 ? "var(--accent)" : pct > 30 ? "var(--accent-2)" : "var(--danger)";
   }
 }
@@ -475,6 +557,7 @@ function renderStatus(payload) {
   $("#hp-text").textContent = `${s.hp}/${s.max_hp} ${s.status || ""}`;
   setBar($("#hp-fill"), s.hp, s.max_hp);
   renderHearts(s.hp, s.max_hp);
+  renderProgress(s);
   const fighting = s.status === "combat" || s.in_combat;
   state.inCombat = !!fighting;
   $("#combat-box").hidden = !fighting;
@@ -488,15 +571,140 @@ function renderStatus(payload) {
   }
 }
 
+function renderProgress(s) {
+  if (typeof s.level !== "number") return; // server without progression
+  $("#level-text").textContent = `Level ${s.level}`;
+  $("#xp-text").textContent = `${s.xp}/${s.xp_next} xp · atk ${s.attack} def ${s.defense}`;
+  setBar($("#xp-fill"), s.xp, s.xp_next);
+  const stats = $("#stats");
+  stats.replaceChildren();
+  ["strength", "agility", "endurance"].forEach((k) => {
+    const li = el("li");
+    li.appendChild(el("span", "name", k));
+    li.appendChild(el("span", "value", String((s.stats || {})[k] || 0)));
+    if (s.points > 0) li.appendChild(button("+", () => send("TRAIN " + k)));
+    stats.appendChild(li);
+  });
+  if (s.points > 0) stats.appendChild(el("li", "empty", `${s.points} point(s) to spend`));
+
+  state.equipped = {};
+  const eq = $("#equipment");
+  eq.replaceChildren();
+  ["weapon", "armor", "amulet"].forEach((slot) => {
+    const id = (s.equipment || {})[slot];
+    if (id) state.equipped[slot] = id;
+    const li = el("li");
+    li.appendChild(el("span", "tag", slot));
+    li.appendChild(el("span", "name", id ? nameOf(id) : "—"));
+    if (id) li.appendChild(button("Remove", () => send("UNEQUIP " + slot)));
+    eq.appendChild(li);
+  });
+  renderInventoryList();
+}
+
+// ---------------------------------------------------------------- social
+function whisper(name) {
+  $('.tab[data-scope="PRIVATE"]').click();
+  const input = $("#chat-input");
+  input.value = name + " ";
+  input.focus();
+}
+
+function renderFriends(payload) {
+  const list = $("#friends");
+  list.replaceChildren();
+  const fl = tryJSON(payload) || [];
+  fl.forEach((f) => {
+    const li = el("li");
+    li.appendChild(el("span", f.online ? "online" : "offline", f.online ? "● " : "○ "));
+    li.appendChild(el("span", "name", f.name));
+    if (f.online) li.appendChild(button("Whisper", () => whisper(f.name)));
+    li.appendChild(button("Remove", () => send("FRIEND REMOVE " + f.name)));
+    list.appendChild(li);
+  });
+  if (!fl.length) emptyItem(list, "no friends yet");
+}
+
+function renderTop(payload) {
+  const top = tryJSON(payload);
+  if (!Array.isArray(top)) return log(payload);
+  log("Leaderboard (full list at /top):", "quest");
+  top.forEach((e) => log(`${e.rank}. ${e.name}${e.online ? " ●" : ""} — level ${e.level}, ${e.quests} quests, ${e.kills} kills`, "quest"));
+}
+
+function onTradeEvent(type, parts, payload) {
+  const other = parts[2];
+  if (type === "REQUEST") {
+    const li = el("li", "quest");
+    li.appendChild(el("span", "", `⇄ ${other} wants to trade. `));
+    li.appendChild(button("Trade", () => send("TRADE WITH " + other)));
+    $("#log").appendChild(li);
+    $("#log").scrollTop = $("#log").scrollHeight;
+  } else if (type === "OPEN") {
+    log(`Trade open with ${other}.`, "quest");
+    send("TRADE INFO", null, true);
+  } else if (type === "UPDATE") {
+    renderTrade(tryJSON(payload.replace(/^TRADE UPDATE /, "")));
+  } else if (type === "DONE") {
+    const v = tryJSON(payload.replace(/^TRADE DONE /, "")) || {};
+    log(`Trade done: you gave ${(v.mine || []).map(nameOf).join(", ") || "nothing"}, got ${(v.theirs || []).map(nameOf).join(", ") || "nothing"}.`, "ok");
+    renderTrade(null);
+    refresh("INVENTORY", "STATUS", "QUESTS");
+  } else if (type === "CANCEL") {
+    log(`Trade cancelled by ${other}.`, "evt");
+    renderTrade(null);
+  }
+}
+
+function renderTrade(v) {
+  state.trade = v && v.with ? v : null;
+  $("#trade-box").hidden = !state.trade;
+  renderInventoryList();
+  if (!state.trade) return;
+  $("#trade-with").textContent = v.with;
+  const fill = (sel, items, mine) => {
+    const list = $(sel);
+    list.replaceChildren();
+    (items || []).forEach((id) => {
+      const li = el("li");
+      li.appendChild(el("span", "name", nameOf(id)));
+      if (mine) li.appendChild(button("Remove", () => send("TRADE REMOVE " + id)));
+      list.appendChild(li);
+    });
+    if (!(items || []).length) emptyItem(list, "nothing");
+  };
+  fill("#trade-mine", v.mine, true);
+  fill("#trade-theirs", v.theirs, false);
+  $("#trade-mine-ok").hidden = !v.accepted;
+  $("#trade-theirs-ok").hidden = !v.they_accepted;
+  (v.theirs || []).forEach((id) => {
+    if (!state.names[id] && !state.asked[id]) { state.asked[id] = true; send("INSPECT " + id, null, true); }
+  });
+}
+
+function renderSkills(payload) {
+  const list = tryJSON(payload);
+  if (!Array.isArray(list)) return;
+  list.forEach((sk) => {
+    const b = $(`#skills [data-skill="${sk.name}"]`);
+    if (!b) return;
+    b.disabled = !state.connected || !sk.ready || (sk.combat_only && !state.inCombat);
+    b.title = sk.unlocked ? sk.description : `Unlocks at level ${sk.level}`;
+    if (sk.unlocked && sk.wait > 0) b.dataset.wait = String(sk.wait);
+    else delete b.dataset.wait;
+  });
+}
+
 function renderCombat(payload) {
   const r = tryJSON(payload);
   if (!r) return log(payload, "combat");
   (r.log || []).forEach((l) => appendFeed($("#log"), ["⚔ " + l], "combat"));
   if (r.used) log(`Used ${nameOf(r.used)}: +${r.healed} HP`, "ok");
+  else if (r.skill && typeof r.healed === "number") log(`Second wind: +${r.healed} HP`, "ok");
   if (r.status === "victory") log("Victory!", "ok");
   if (r.status === "fled") { log(`You fled ${r.direction}.`, "ok"); hideDialogue(); }
   if (r.status === "defeated") log(`Defeated! Respawned at ${r.respawn_room}.`, "err");
-  if (!r.log && !r.used && !r.status) log(payload, "combat");
+  if (!r.log && !r.used && !r.status && !r.skill) log(payload, "combat");
 }
 
 function renderQuests(payload) {
@@ -508,9 +716,10 @@ function renderQuests(payload) {
     const li = el("li", q.status);
     li.appendChild(el("span", "name", q.title || q.quest_id));
     if (q.progress) li.appendChild(el("span", "progress", q.progress));
+    if (q.steps > 1 && q.status === "active") li.appendChild(el("span", "progress", `step ${q.step}/${q.steps}`));
     li.appendChild(el("span", "tag", q.status));
     if (q.status === "active") li.appendChild(button("Abandon", () => send("ABANDON " + q.quest_id)));
-    li.title = q.description || "";
+    li.title = (q.status === "active" && q.objective) ? q.objective : (q.description || "");
     list.appendChild(li);
   });
   if (!qs.length) emptyItem(list, "no quests yet — talk to villagers");
@@ -531,16 +740,31 @@ function renderTalk(payload, line) {
   const t = tryJSON(payload);
   let speaker = line.split(/\s+/).slice(1).join(" ");
   let text = payload;
+  let options = [];
   if (t && typeof t === "object") {
     speaker = t.name || nameOf(t.npc) || speaker;
-    text = t.dialogue;
+    text = t.dialogue || "";
+    options = Array.isArray(t.options) ? t.options : [];
+    if (t.quest && t.quest.quest_id) {
+      const q = t.quest;
+      log(`★ ${q.title || q.quest_id} [${q.status}] ${q.progress || ""}` + (q.message ? " " + q.message : ""), "quest");
+      refresh("INVENTORY", "STATUS", "QUESTS");
+    }
   } else {
     speaker = nameOf(speaker);
   }
+  const list = $("#dialogue-options");
+  list.replaceChildren();
+  if (!text && !options.length) return hideDialogue(); // the conversation ended
+  options.forEach((o) => {
+    const li = el("li");
+    li.appendChild(button(`${o.n}. ${o.text}`, () => send("SAY " + o.n)));
+    list.appendChild(li);
+  });
   $("#dialogue").hidden = false;
   $("#dialogue-speaker").textContent = speaker;
-  $("#dialogue-line").textContent = "“" + text + "”";
-  log(`${speaker}: ${text}`, "quest");
+  $("#dialogue-line").textContent = text ? "“" + text + "”" : "";
+  if (text) log(`${speaker}: ${text}`, "quest");
 }
 function hideDialogue() { $("#dialogue").hidden = true; }
 
@@ -587,6 +811,10 @@ function init() {
   $("#btn-drop-name").addEventListener("click", () => { const v = valueOf("#item-name"); if (v) send("DROP " + v); });
   $("#btn-use-name").addEventListener("click", () => { const v = valueOf("#item-name"); if (v) send("USE " + v); });
   $("#btn-defend").addEventListener("click", () => send("DEFEND"));
+  $("#btn-trade-accept").addEventListener("click", () => send("TRADE ACCEPT"));
+  $("#btn-trade-cancel").addEventListener("click", () => send("TRADE CANCEL"));
+  $("#btn-friend-add").addEventListener("click", () => { const v = valueOf("#friend-name"); if (v) send("FRIEND ADD " + v); });
+  $$("#skills [data-skill]").forEach((b) => b.addEventListener("click", () => send("SKILL " + b.dataset.skill)));
   $("#btn-flee").addEventListener("click", () => send("FLEE"));
 
   $("#resume-key").value = loadKey();
@@ -628,14 +856,14 @@ function init() {
     $$(".tab").forEach((x) => x.classList.toggle("active", x === t));
     $$("[data-feed]").forEach((f) => { f.hidden = f.dataset.feed !== state.scope; });
     const label = { GLOBAL: "Global", ROOM: "the room", GROUP: "your group" }[state.scope];
-    $("#chat-input").placeholder = `Say something to ${label}…`;
+    $("#chat-input").placeholder = state.scope === "PRIVATE" ? "name message (private)" : `Say something to ${label}…`;
   }));
 
   $("#chat-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const msg = $("#chat-input").value.trim();
     if (!msg) return;
-    send(`CHAT ${state.scope} ${msg}`);
+    send(state.scope === "PRIVATE" ? `TELL ${msg}` : `CHAT ${state.scope} ${msg}`);
     $("#chat-input").value = "";
   });
   $("#raw-form").addEventListener("submit", (e) => {

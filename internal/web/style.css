@@ -276,6 +276,9 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 }
 .dialogue .speaker { font-family: var(--pixel); font-size: 10px; color: var(--info); }
 .dialogue .line { margin-top: 6px; font-size: 22px; }
+.dialogue .options { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.dialogue .options:empty { display: none; }
+.dialogue .options button { width: 100%; text-align: left; white-space: normal; }
 
 /* ---------------------------------------------------------------- hearts & bars */
 .hearts { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 10px; }
@@ -306,6 +309,12 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
   box-shadow: inset 0 2px 0 rgba(255,255,255,.35);
 }
 .hp-bar.enemy > div { background-color: var(--danger); }
+.hp-bar.xp { height: 8px; }
+.hp-bar.xp > div { background-color: var(--info); }
+.level-line { margin-top: 10px; display: flex; justify-content: space-between; gap: 8px; }
+.stats li { display: flex; align-items: center; gap: 8px; }
+.stats .value { margin-left: auto; font-weight: bold; }
+#skills button[data-wait]::after { content: " (" attr(data-wait) ")"; }
 #hp-text { font-family: var(--pixel); font-size: 9px; white-space: nowrap; }
 
 .side .combat {
@@ -374,3 +383,11 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .key-help { font-size: 17px; margin: 0 0 6px; }
 #resume-key { flex: 1 1 140px; font-size: 16px; letter-spacing: .06em; }
 #btn-show-key { padding: 8px 10px; }
+
+/* ---------------------------------------------------------------- social */
+.trade { margin-top: 12px; padding: 8px 10px; border: 3px solid #000; background: #fffaf0; }
+.trade h3 { margin-top: 0; }
+.trade-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.small, h3 .small { font-size: 10px; margin-left: 6px; }
+#friends .online { color: var(--accent); }
+#friends .offline { color: var(--ink-soft); }

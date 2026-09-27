@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"hollowmere/internal/limit"
 	"hollowmere/internal/proto"
 	"log/slog"
 )
@@ -49,6 +50,7 @@ type NPC struct {
 	Home     string
 	Room     string // "" while dead
 	HP       int
+	MaxHP    int // Def.Stats.HP, scaled up for group fights
 	Alive    bool
 	Loot     []string        // item instance ids dropped on defeat
 	Damagers map[string]bool // players who hurt the npc since its last reset
@@ -58,27 +60,44 @@ type NPC struct {
 type QuestState struct {
 	ID       string
 	Status   string // active, completed
-	Progress int
+	Step     int    // index of the current step
+	Progress int    // objective count of the current step
 }
 
 // Player is a connected, authenticated player.
 type Player struct {
-	Name      string
-	Key       string // resume key; "" when persistence is disabled
-	IP        string
-	Sink      Sink
-	Room      string
-	HP        int
-	MaxHP     int
-	Inventory []string
-	Group     *Group
-	Target    string // npc instance id while in combat
-	Defending bool
-	Quests    map[string]*QuestState
-	QuestList []string
-	talkIndex map[string]int
-	joined    time.Time
-	played    time.Duration
+	Name       string
+	Key        string // resume key; "" when persistence is disabled
+	IP         string
+	Sink       Sink
+	Room       string
+	HP         int
+	MaxHP      int
+	Inventory  []string
+	Group      *Group
+	Target     string // npc instance id while in combat
+	Defending  bool
+	Quests     map[string]*QuestState
+	QuestList  []string
+	Flags      map[string]bool // choices remembered from conversations
+	Level      int
+	XP         int // experience gathered toward the next level
+	Stats      Stats
+	Points     int               // stat points left to spend with TRAIN
+	Equipped   map[string]string // slot -> item instance id
+	cooldowns  map[string]*cooldown
+	parrying   bool
+	Friends    []string // names, as the player typed them or as they are online
+	Kills      int      // enemies defeated, for the leaderboard
+	tellBucket *limit.Bucket
+	trade      *Trade // open trade, if any
+	tradeAsk   string // name of the player asked to trade
+	Role       string // "", moderator or admin
+	talkIndex  map[string]int
+	talking    string // npc instance id of the open conversation
+	talkNode   string // its current dialogue node
+	joined     time.Time
+	played     time.Duration
 }
 
 // Group is a set of players sharing a chat channel.
@@ -103,6 +122,8 @@ type Game struct {
 	byKey     map[string]*Player // connected players, by resume key
 	idCount   map[string]int
 	store     Store
+	mod       Moderation
+	sanctions []Sanction // bans and mutes in force, cached from mod
 	nextGroup int
 	// Schedule runs f after d. Tests replace it to control time.
 	Schedule func(d time.Duration, f func())
@@ -183,7 +204,8 @@ func (g *Game) newItem(defID string) *Item {
 
 func (g *Game) spawnNPC(n *NPC) {
 	n.Alive = true
-	n.HP = n.Def.Stats.HP
+	n.MaxHP = n.Def.Stats.HP
+	n.HP = n.MaxHP
 	n.Room = n.Home
 	n.Damagers = map[string]bool{}
 	r := g.rooms[n.Home]
@@ -232,6 +254,9 @@ func (g *Game) detachItem(it *Item) {
 	if it.Holder != "" {
 		if p := g.players[strings.ToLower(it.Holder)]; p != nil {
 			p.Inventory = removeString(p.Inventory, it.ID)
+			if slot := it.Def.Slot; slot != "" && p.Equipped[slot] == it.ID {
+				delete(p.Equipped, slot)
+			}
 		}
 		it.Holder = ""
 	}
@@ -352,6 +377,10 @@ func (g *Game) Connect(name, key, ip string, sink Sink) (*Player, *proto.Error) 
 			return nil, proto.ErrAlreadyConnected
 		}
 	}
+	if b := g.banned(key, ip); b != nil {
+		g.log.Warn("connect_banned", "player", name, "ip", ip, "ban", b.ID)
+		return nil, proto.ErrBanned
+	}
 	saved, perr := g.loadForConnect(name, key)
 	if perr != nil {
 		return nil, perr
@@ -370,11 +399,22 @@ func (g *Game) Connect(name, key, ip string, sink Sink) (*Player, *proto.Error) 
 		HP:        max,
 		MaxHP:     max,
 		Quests:    map[string]*QuestState{},
+		Flags:     map[string]bool{},
+		Level:     1,
+		Equipped:  map[string]string{},
+		cooldowns: map[string]*cooldown{},
 		talkIndex: map[string]int{},
 		joined:    time.Now(),
 	}
 	if saved != nil {
 		g.restore(p, saved)
+		if g.mod != nil {
+			if role, err := g.mod.Role(key); err == nil {
+				p.Role = role
+			} else {
+				g.log.Error("role_lookup_failed", "error", err.Error())
+			}
+		}
 	}
 	g.players[lower] = p
 	if key != "" {
@@ -388,6 +428,7 @@ func (g *Game) Connect(name, key, ip string, sink Sink) (*Player, *proto.Error) 
 		"returning", saved != nil, "online", len(g.players))
 	g.broadcastRoom(p.Room, p.Name, "EVT ROOM PRESENCE ENTER "+p.Name)
 	g.broadcastAll(g.statsEvent())
+	g.notifyFriends(p, "ONLINE")
 	g.ambush(p) // an aggressive enemy may be waiting where you logged out
 	return p, nil
 }
@@ -401,6 +442,7 @@ func (g *Game) Disconnect(p *Player, reason string) {
 		return
 	}
 	room := p.Room
+	g.leaveTrades(p)
 	g.persist(p)
 	var dropped []string
 	if g.store == nil {
@@ -441,6 +483,7 @@ func (g *Game) Disconnect(p *Player, reason string) {
 	if gr != nil {
 		g.broadcastGroup(gr, "EVT GROUP LEAVE "+p.Name)
 	}
+	g.notifyFriends(p, "OFFLINE")
 	g.broadcastAll(g.statsEvent())
 }
 
@@ -450,9 +493,12 @@ func (g *Game) movePlayer(p *Player, to string) {
 	g.rooms[from].Players = removeString(g.rooms[from].Players, p.Name)
 	g.broadcastRoom(from, p.Name, "EVT ROOM PRESENCE LEAVE "+p.Name)
 	p.Room = to
+	p.talking, p.talkNode = "", ""
+	g.leaveTrades(p)
 	g.broadcastRoom(to, p.Name, "EVT ROOM PRESENCE ENTER "+p.Name)
 	g.rooms[to].Players = append(g.rooms[to].Players, p.Name)
 	g.log.Info("player_moved", "player", p.Name, "from", from, "to", to)
+	g.refreshQuests(p)
 	g.ambush(p)
 }
 

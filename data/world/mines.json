@@ -1,0 +1,133 @@
+{
+  "rooms": {
+    "loc.goblin_tunnel": {
+      "name": "Goblin Tunnel",
+      "description": "A cramped tunnel scratched out by goblin claws. It breaks through into a proper mine shaft to the west.",
+      "exits": { "up": "loc.cave", "west": "loc.mine_shaft" },
+      "spawns": [{ "npc": "npc.goblin_scout", "count": 1 }]
+    },
+    "loc.mine_entrance": {
+      "name": "Mine Entrance",
+      "description": "Timber props, rusted rails and a sign reading DAIN & SONS - KEEP OUT. A lift cage hangs over the shaft.",
+      "safe": true,
+      "exits": { "north": "loc.hunters_camp", "down": "loc.mine_shaft" },
+      "items": ["item.miners_lamp"],
+      "spawns": [{ "npc": "npc.foreman", "count": 1 }]
+    },
+    "loc.mine_shaft": {
+      "name": "Main Shaft",
+      "description": "The lift cage creaks at the top of a long wooden ladder. A goblin tunnel breaks through the east wall, and the shaft keeps going down.",
+      "exits": { "up": "loc.mine_entrance", "east": "loc.goblin_tunnel", "down": "loc.mine_lower" }
+    },
+    "loc.mine_lower": {
+      "name": "Lower Galleries",
+      "description": "Abandoned carts and broken picks. Small figures with lanterns scurry at the edge of the light - the kobolds have moved in.",
+      "exits": { "up": "loc.mine_shaft", "east": "loc.flooded_gallery", "west": "loc.crystal_cavern" },
+      "spawns": [{ "npc": "npc.kobold", "count": 2 }]
+    },
+    "loc.flooded_gallery": {
+      "name": "Flooded Gallery",
+      "description": "Black water up to your knees. Something jelly-like glistens on the surface.",
+      "exits": { "west": "loc.mine_lower" },
+      "items": ["item.iron_ore"],
+      "spawns": [{ "npc": "npc.slime", "count": 1 }]
+    },
+    "loc.crystal_cavern": {
+      "name": "Crystal Cavern",
+      "description": "Crystals as tall as a man grow from the walls and hum faintly. Carved steps descend to a sealed dwarven door, long since forced open.",
+      "exits": { "east": "loc.mine_lower", "down": "loc.dwarf_forge" },
+      "items": ["item.crystal_shard"]
+    },
+    "loc.dwarf_forge": {
+      "name": "Forge of the Deep",
+      "description": "An ancient dwarven forge, cold for centuries. In the middle of it stands a guardian of carved stone, a red light pulsing in its chest. Behind it, a stair drops toward a great round gate.",
+      "exits": { "up": "loc.crystal_cavern", "down": "loc.deep_gate" },
+      "spawns": [{ "npc": "npc.golem", "count": 1 }]
+    }
+  },
+
+  "items": {
+    "item.miners_lamp": { "name": "Miner's Lamp", "description": "A dented brass lamp. Swung hard, it hurts.", "obtainable": true, "attack": 3 },
+    "item.iron_ore": { "name": "Iron Ore", "description": "A lump of good ore. Borga would like this.", "obtainable": true },
+    "item.crystal_shard": { "name": "Crystal Shard", "description": "A humming sliver of crystal. Holding it steadies the heart.", "obtainable": true, "heal": 20 },
+    "item.goblin_spear": { "name": "Goblin Spear", "description": "Crooked, but pointy at the right end.", "obtainable": true, "attack": 5 },
+    "item.golem_heart": { "name": "Golem Heart", "description": "A fist-sized ruby, still warm, still beating very slowly.", "obtainable": true },
+    "item.runed_blade": { "name": "Runed Blade", "description": "Borga's masterwork, quenched in the golem's heart. The runes glow red when it strikes.", "obtainable": true, "attack": 14, "min_level": 5 },
+    "item.dwarf_helm": { "name": "Dwarven Helm", "description": "Heavy, dented and very reassuring.", "obtainable": true, "defense": 5, "min_level": 4 }
+  },
+
+  "npcs": {
+    "npc.goblin_scout": {
+      "name": "Goblin Scout",
+      "description": "A skinny goblin with a spear longer than itself.",
+      "role": "enemy",
+      "hostile": true,
+      "dialogue": ["Chief will hear of this! If chief still alive..."],
+      "stats": { "hp": 30, "attack": 6, "defense": 1, "speed": 7 },
+      "loot": ["item.goblin_spear"]
+    },
+    "npc.kobold": {
+      "name": "Kobold Miner",
+      "description": "Small, scaly and armed with a stolen pick.",
+      "role": "enemy",
+      "hostile": true,
+      "aggressive": true,
+      "dialogue": ["Mine! Mine mine mine!"],
+      "stats": { "hp": 35, "attack": 7, "defense": 2, "speed": 6 }
+    },
+    "npc.slime": {
+      "name": "Gallery Slime",
+      "description": "A wobbling mass of grey jelly with a boot floating inside it.",
+      "role": "enemy",
+      "hostile": true,
+      "dialogue": ["*blorp*"],
+      "stats": { "hp": 30, "attack": 5, "defense": 3, "speed": 2 },
+      "loot": ["item.gold_coin"]
+    },
+    "npc.golem": {
+      "name": "Stone Guardian",
+      "description": "Three times your height, carved from a single block of granite. Its ruby heart pulses as it turns toward you.",
+      "role": "enemy",
+      "hostile": true,
+      "dialogue": ["INTRUDER. THE FORGE IS SEALED."],
+      "stats": { "hp": 120, "attack": 13, "defense": 6, "speed": 2 },
+      "loot": ["item.golem_heart", "item.dwarf_helm"]
+    },
+    "npc.foreman": {
+      "name": "Foreman Dain",
+      "description": "A dwarf with a beard tucked into his belt and soot in every wrinkle.",
+      "role": "quest_giver",
+      "dialogue": [
+        "Kobolds! In MY mine! Took the lower galleries while we were at lunch.",
+        "Down the lift, then down again. Mind the water to the east.",
+        "My grandfather said the old dwarves left a guardian below the crystals. Never believed him until the kobolds came running up screaming.",
+        "Below the forge there's a gate the old dwarves carved: ONLY TOGETHER. Nobody goes through it alone, and nobody should."
+      ]
+    }
+  },
+
+  "quests": {
+    "q.mine_trouble": {
+      "title": "Kobolds in the Mine",
+      "description": "Foreman Dain wants his lower galleries back.",
+      "giver": "npc.foreman",
+      "steps": [
+        { "description": "Go down to the lower galleries of the mine.", "type": "visit", "target": "loc.mine_lower" },
+        { "description": "Drive out the 2 Kobold Miners.", "type": "kill", "target": "npc.kobold", "count": 2 }
+      ],
+      "reward": { "xp": 200, "items": ["item.gold_coin", "item.healing_potion"], "max_hp": 15 }
+    },
+    "q.golem_heart": {
+      "title": "Heart of Stone",
+      "description": "The Stone Guardian's ruby heart could fuel a legendary forging. Smith Borga will know what to do with it.",
+      "giver": "npc.foreman",
+      "turn_in": "npc.smith",
+      "requires": ["q.mine_trouble"],
+      "steps": [
+        { "description": "Defeat the Stone Guardian in the Forge of the Deep.", "type": "kill", "target": "npc.golem" },
+        { "description": "Bring the Golem Heart to Smith Borga in the village.", "type": "deliver", "target": "item.golem_heart" }
+      ],
+      "reward": { "xp": 350, "items": ["item.runed_blade"], "max_hp": 20, "heal_full": true }
+    }
+  }
+}

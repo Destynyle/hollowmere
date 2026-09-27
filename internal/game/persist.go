@@ -25,8 +25,12 @@ import (
 //     recreated when the player comes back, which also frees the loot slot
 //     of the enemy that dropped it.
 
-// SaveVersion is bumped when the shape of PlayerSave changes.
-const SaveVersion = 1
+// SaveVersion is bumped when the shape of PlayerSave changes. Optional
+// fields (quest steps, flags) read as zero in older saves and need no bump.
+//
+//	1: room, health, inventory, quests
+//	2: level, experience, statistics, equipment
+const SaveVersion = 2
 
 // PlayerSave is the character state stored between sessions.
 type PlayerSave struct {
@@ -36,12 +40,23 @@ type PlayerSave struct {
 	MaxHP     int          `json:"max_hp"`
 	Inventory []string     `json:"inventory"` // item type ids
 	Quests    []SavedQuest `json:"quests"`
+	Flags     []string     `json:"flags,omitempty"`
+	// Version 2
+	Level    int               `json:"level,omitempty"`
+	XP       int               `json:"xp,omitempty"`
+	Stats    Stats             `json:"stats"`
+	Points   int               `json:"points,omitempty"`
+	Equipped map[string]string `json:"equipped,omitempty"` // slot -> item type id
+	// Optional since step 6
+	Friends []string `json:"friends,omitempty"`
+	Kills   int      `json:"kills,omitempty"`
 }
 
 // SavedQuest is one quest line of a save.
 type SavedQuest struct {
 	ID       string `json:"id"`
 	Status   string `json:"status"`
+	Step     int    `json:"step,omitempty"`
 	Progress int    `json:"progress"`
 }
 
@@ -49,6 +64,7 @@ type SavedQuest struct {
 type StoredPlayer struct {
 	Key    string
 	Name   string
+	IP     string // last address, kept for bans; not part of the save
 	Data   PlayerSave
 	Played time.Duration
 }
@@ -61,13 +77,20 @@ type Store interface {
 	// NameOwner returns the key owning a name, or "" when it is free.
 	NameOwner(name string) (string, error)
 	SavePlayer(p *StoredPlayer) error
+	// Top returns the best saved characters (see TopEntry).
+	Top(limit int) ([]TopEntry, error)
 }
 
 // SetStore enables persistence. It must be called before players connect.
+// A store that also implements Moderation enables moderation.
 func (g *Game) SetStore(s Store) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.store = s
+	if m, ok := s.(Moderation); ok {
+		g.mod = m
+		g.reloadSanctions()
+	}
 }
 
 // NewKey returns a fresh resume key: 26 characters of base32, 128 bits of
@@ -89,6 +112,21 @@ func (g *Game) capture(p *Player) *StoredPlayer {
 		HP:      p.HP,
 		MaxHP:   p.MaxHP,
 		Quests:  make([]SavedQuest, 0, len(p.QuestList)),
+		Level:   p.Level,
+		XP:      p.XP,
+		Stats:   p.Stats,
+		Points:  p.Points,
+		Friends: append([]string(nil), p.Friends...),
+		Kills:   p.Kills,
+	}
+	for slot, id := range p.Equipped {
+		// World items go home on logout, so only kept items stay worn.
+		if it := g.items[id]; it != nil && it.Origin == "" {
+			if save.Equipped == nil {
+				save.Equipped = map[string]string{}
+			}
+			save.Equipped[slot] = it.DefID
+		}
 	}
 	for _, id := range p.Inventory {
 		if it := g.items[id]; it != nil && it.Origin == "" {
@@ -97,9 +135,10 @@ func (g *Game) capture(p *Player) *StoredPlayer {
 	}
 	for _, qid := range p.QuestList {
 		st := p.Quests[qid]
-		save.Quests = append(save.Quests, SavedQuest{ID: qid, Status: st.Status, Progress: st.Progress})
+		save.Quests = append(save.Quests, SavedQuest{ID: qid, Status: st.Status, Step: st.Step, Progress: st.Progress})
 	}
-	return &StoredPlayer{Key: p.Key, Name: p.Name, Data: save, Played: p.played + time.Since(p.joined)}
+	save.Flags = sortedKeys(p.Flags)
+	return &StoredPlayer{Key: p.Key, Name: p.Name, IP: p.IP, Data: save, Played: p.played + time.Since(p.joined)}
 }
 
 // restore applies a save to a freshly created player. Called with g.mu held.
@@ -124,10 +163,52 @@ func (g *Game) restore(p *Player, sp *StoredPlayer) {
 		if _, ok := g.W.Quests[q.ID]; !ok {
 			continue
 		}
-		p.Quests[q.ID] = &QuestState{ID: q.ID, Status: q.Status, Progress: q.Progress}
+		// The world file may have lost steps since the save.
+		step := minInt(maxInt(q.Step, 0), len(g.W.Quests[q.ID].Steps)-1)
+		p.Quests[q.ID] = &QuestState{ID: q.ID, Status: q.Status, Step: step, Progress: q.Progress}
 		p.QuestList = append(p.QuestList, q.ID)
 	}
+	for _, f := range s.Flags {
+		p.Flags[f] = true
+	}
+	p.Friends = append([]string(nil), s.Friends...)
+	p.Kills = s.Kills
+	if s.Version < 2 {
+		g.migrateV1(p)
+	} else {
+		p.Level = minInt(maxInt(s.Level, 1), MaxLevel)
+		p.XP, p.Stats, p.Points = s.XP, s.Stats, s.Points
+		for _, slot := range Slots {
+			defID := s.Equipped[slot]
+			for _, id := range p.Inventory {
+				if it := g.items[id]; defID != "" && it.DefID == defID && it.Def.Slot == slot {
+					p.Equipped[slot] = id
+					break
+				}
+			}
+		}
+	}
 	p.played = sp.Played
+}
+
+// migrateV1 upgrades a character saved before levels existed: it gets the
+// experience of the quests it already completed, and wears the best items
+// it carries, which is what counted in combat back then.
+func (g *Game) migrateV1(p *Player) {
+	xp := 0
+	for _, qid := range p.QuestList {
+		if p.Quests[qid].Status == "completed" {
+			xp += g.W.Quests[qid].Reward.XP
+		}
+	}
+	for p.Level < MaxLevel && xp >= XPForLevel(p.Level) {
+		xp -= XPForLevel(p.Level)
+		p.Level++
+		p.MaxHP += HPPerLevel
+		p.Points += StatPointsPerLevel
+	}
+	p.XP = xp
+	g.equipBest(p)
 }
 
 // releaseItems empties the inventory on logout: world items go home, the
@@ -189,6 +270,7 @@ func (g *Game) AutoSave(every time.Duration, stop <-chan struct{}) {
 			if n := g.SaveAll(); n > 0 {
 				g.log.Debug("autosave", "players", n)
 			}
+			g.ReloadSanctions() // picks up console changes
 		case <-stop:
 			return
 		}

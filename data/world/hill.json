@@ -1,0 +1,100 @@
+{
+  "rooms": {
+    "loc.hill_path": {
+      "name": "Hill Path",
+      "description": "A sheep track climbs from the tavern's back door. The watchtower looms to the north; a green meadow opens to the east.",
+      "exits": { "south": "loc.tavern", "north": "loc.tower_base", "east": "loc.meadow" },
+      "items": ["item.herbs"]
+    },
+    "loc.meadow": {
+      "name": "Shepherd's Meadow",
+      "description": "Sheep, stone walls and wind. A few sheep are missing, judging by the feathers and the blood. Crags rise to the north.",
+      "safe": true,
+      "exits": { "west": "loc.hill_path", "north": "loc.harpy_crag" },
+      "spawns": [{ "npc": "npc.shepherd", "count": 1 }]
+    },
+    "loc.harpy_crag": {
+      "name": "Harpy Crag",
+      "description": "A jagged outcrop littered with bones and wool. Nests of branches and rags cling to the rock above.",
+      "exits": { "south": "loc.meadow" },
+      "items": ["item.harpy_feather"],
+      "spawns": [{ "npc": "npc.harpy", "count": 2 }]
+    },
+    "loc.tower_base": {
+      "name": "Foot of the Watchtower",
+      "description": "The old watchtower of the hill watch, black against the sky. The door hangs open. A violet light pulses at the top.",
+      "exits": { "south": "loc.hill_path", "up": "loc.tower_stairs" }
+    },
+    "loc.tower_stairs": {
+      "name": "Tower Stairs",
+      "description": "A spiral stair open to the wind where the wall has fallen away. Something with wings screeches above you.",
+      "exits": { "down": "loc.tower_base", "up": "loc.tower_top" },
+      "spawns": [{ "npc": "npc.harpy_matron", "count": 1 }]
+    },
+    "loc.tower_top": {
+      "name": "The Hollow Throne",
+      "description": "The top of the tower, roofless under a violet sky. A throne of black iron faces the village. Its occupant is mostly armour, and the armour is mostly empty.",
+      "exits": { "down": "loc.tower_stairs" },
+      "spawns": [{ "npc": "npc.warlock", "count": 1 }]
+    }
+  },
+
+  "items": {
+    "item.harpy_feather": { "name": "Harpy Feather", "description": "Long, oily and bronze-tipped. Fletchers pay well for these.", "obtainable": true },
+    "item.wool_cloak": { "name": "Wool Cloak", "description": "Thick, warm and smelling of sheep. The shepherd's best.", "obtainable": true, "defense": 4, "min_level": 2 },
+    "item.hollow_crown": { "name": "Hollow Crown", "description": "A crown of black iron with nothing inside it but cold.", "obtainable": true }
+  },
+
+  "npcs": {
+    "npc.shepherd": {
+      "name": "Shepherd Nell",
+      "description": "A young shepherd with a crook, a sling and a very bad mood.",
+      "role": "quest_giver",
+      "dialogue": [
+        "Harpies! Up on the crag! They take a sheep a night.",
+        "The tower? Nobody goes up there. The lights started the same week as the harpies. Can't be chance."
+      ]
+    },
+    "npc.harpy": {
+      "name": "Harpy",
+      "description": "A woman's face, a vulture's body, and an appetite for mutton.",
+      "role": "enemy",
+      "hostile": true,
+      "aggressive": true,
+      "dialogue": ["SKREEE!"],
+      "stats": { "hp": 35, "attack": 9, "defense": 1, "speed": 10 },
+      "loot": ["item.harpy_feather"]
+    },
+    "npc.harpy_matron": {
+      "name": "Harpy Matron",
+      "description": "Larger, older and crueller than the others, with talons like sickles.",
+      "role": "enemy",
+      "hostile": true,
+      "aggressive": true,
+      "dialogue": ["The king feeds us. Who feeds you?"],
+      "stats": { "hp": 60, "attack": 11, "defense": 2, "speed": 9 },
+      "loot": ["item.harpy_feather"]
+    },
+    "npc.warlock": {
+      "name": "The Hollow King",
+      "description": "An empty suit of black armour on an iron throne, a violet flame where its face should be.",
+      "role": "enemy",
+      "hostile": true,
+      "dialogue": ["A hundred years I waited for the bell to crack. Kneel, and I will make you hollow too."],
+      "stats": { "hp": 160, "attack": 15, "defense": 5, "speed": 5 },
+      "loot": ["item.hollow_crown"]
+    }
+  },
+
+  "quests": {
+    "q.harpies": {
+      "title": "Wolves with Wings",
+      "description": "Shepherd Nell is losing a sheep a night to the harpies of the crag.",
+      "giver": "npc.shepherd",
+      "type": "kill",
+      "target": "npc.harpy",
+      "count": 2,
+      "reward": { "xp": 150, "items": ["item.wool_cloak"], "max_hp": 10 }
+    }
+  }
+}

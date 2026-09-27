@@ -24,7 +24,7 @@ USER hollow
 EXPOSE 8080 4243
 ENV TAP_HTTP=0.0.0.0:8080 \
     TAP_TCP=0.0.0.0:4243 \
-    TAP_WORLD=/app/data/world.json
+    TAP_WORLD=/app/data/world
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1

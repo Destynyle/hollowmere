@@ -1,0 +1,48 @@
+# systemd unit for running Hollowmere without Docker.
+#
+#   sudo useradd --system --home /srv/hollowmere --shell /usr/sbin/nologin hollow
+#   sudo install -d -o hollow -g hollow /srv/hollowmere/state
+#   sudo cp bin/hollowmere /usr/local/bin/ && sudo cp -r data /srv/hollowmere/
+#   sudo cp deploy/hollowmere.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now hollowmere
+#
+# Secrets (TAP_METRICS_TOKEN...) go in /etc/hollowmere.env, mode 600.
+[Unit]
+Description=Hollowmere text MUD
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=hollow
+Group=hollow
+WorkingDirectory=/srv/hollowmere
+Environment=TAP_HTTP=127.0.0.1:8080
+Environment=TAP_TCP=0.0.0.0:4243
+Environment=TAP_WORLD=/srv/hollowmere/data/world
+Environment=TAP_DB=/srv/hollowmere/state/hollowmere.db
+Environment=TAP_LOG_FILE=/srv/hollowmere/state/server.log
+EnvironmentFile=-/etc/hollowmere.env
+ExecStart=/usr/local/bin/hollowmere
+# SIGTERM warns the players and saves everyone before exiting.
+KillSignal=SIGTERM
+TimeoutStopSec=20
+Restart=on-failure
+RestartSec=5
+
+# Hardening: the server only needs its state directory.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ReadWritePaths=/srv/hollowmere/state
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

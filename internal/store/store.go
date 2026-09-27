@@ -26,7 +26,12 @@ type Store struct {
 	path string
 }
 
-const schemaVersion = 1
+// schemaVersion history:
+//
+//	1: players (key, name, data, play time)
+//	2: leaderboard columns (level, xp, quests, kills), filled from data
+//	3: moderation (admins, sanctions, modlog) and players.last_ip
+const schemaVersion = 3
 
 // Open creates or opens the database file and applies the schema.
 func Open(path string) (*Store, error) {
@@ -77,12 +82,142 @@ func (s *Store) migrate() error {
 			return fmt.Errorf("store: schema: %w", err)
 		}
 	}
-	_, err := s.db.Exec(`INSERT INTO meta (k, v) VALUES ('schema_version', ?)
+	var current int
+	err := s.db.QueryRow(`SELECT CAST(v AS INTEGER) FROM meta WHERE k = 'schema_version'`).Scan(&current)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("store: schema: %w", err)
+	}
+	if current < 2 {
+		if err := s.migrateLeaderboard(); err != nil {
+			return err
+		}
+	}
+	if current < 3 {
+		if err := s.migrateModeration(); err != nil {
+			return err
+		}
+	}
+	_, err = s.db.Exec(`INSERT INTO meta (k, v) VALUES ('schema_version', ?)
 		ON CONFLICT(k) DO UPDATE SET v = excluded.v`, schemaVersion)
 	if err != nil {
 		return fmt.Errorf("store: schema: %w", err)
 	}
 	return nil
+}
+
+// migrateLeaderboard adds the leaderboard columns and fills them from the
+// saved characters, in one transaction.
+func (s *Store) migrateLeaderboard() error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("store: migrate: %w", err)
+	}
+	defer tx.Rollback()
+	has := map[string]bool{}
+	rows, err := tx.Query(`SELECT name FROM pragma_table_info('players')`)
+	if err != nil {
+		return fmt.Errorf("store: migrate: %w", err)
+	}
+	for rows.Next() {
+		var col string
+		if err := rows.Scan(&col); err != nil {
+			rows.Close()
+			return fmt.Errorf("store: migrate: %w", err)
+		}
+		has[col] = true
+	}
+	rows.Close()
+	for _, col := range []string{"level", "xp", "quests", "kills"} {
+		if has[col] {
+			continue
+		}
+		def := "0"
+		if col == "level" {
+			def = "1"
+		}
+		if _, err := tx.Exec(`ALTER TABLE players ADD COLUMN ` + col + ` INTEGER NOT NULL DEFAULT ` + def); err != nil {
+			return fmt.Errorf("store: migrate: %w", err)
+		}
+	}
+	if _, err := tx.Exec(`CREATE INDEX IF NOT EXISTS players_rank ON players (level DESC, xp DESC, quests DESC, kills DESC)`); err != nil {
+		return fmt.Errorf("store: migrate: %w", err)
+	}
+	type row struct {
+		key  string
+		save game.PlayerSave
+	}
+	var all []row
+	rs, err := tx.Query(`SELECT key, data FROM players`)
+	if err != nil {
+		return fmt.Errorf("store: migrate: %w", err)
+	}
+	for rs.Next() {
+		var r row
+		var data string
+		if err := rs.Scan(&r.key, &data); err != nil {
+			rs.Close()
+			return fmt.Errorf("store: migrate: %w", err)
+		}
+		if json.Unmarshal([]byte(data), &r.save) == nil {
+			all = append(all, r)
+		}
+	}
+	rs.Close()
+	for _, r := range all {
+		level, xp, quests, kills := rankOf(&r.save)
+		if _, err := tx.Exec(`UPDATE players SET level = ?, xp = ?, quests = ?, kills = ? WHERE key = ?`,
+			level, xp, quests, kills, r.key); err != nil {
+			return fmt.Errorf("store: migrate: %w", err)
+		}
+	}
+	return tx.Commit()
+}
+
+// rankOf extracts the leaderboard figures of a save.
+func rankOf(save *game.PlayerSave) (level, xp, quests, kills int) {
+	level = save.Level
+	if level < 1 {
+		level = 1
+	}
+	for _, q := range save.Quests {
+		if q.Status == "completed" {
+			quests++
+		}
+	}
+	return level, save.XP, quests, save.Kills
+}
+
+// Top returns the best characters: by level, then experience, quests
+// completed and enemies defeated.
+func (s *Store) Top(limit int) ([]game.TopEntry, error) {
+	rows, err := s.db.Query(`SELECT name, level, xp, quests, kills FROM players
+		ORDER BY level DESC, xp DESC, quests DESC, kills DESC, name_lower ASC LIMIT ?`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("store: top: %w", err)
+	}
+	defer rows.Close()
+	var out []game.TopEntry
+	for rows.Next() {
+		var e game.TopEntry
+		if err := rows.Scan(&e.Name, &e.Level, &e.XP, &e.Quests, &e.Kills); err != nil {
+			return nil, fmt.Errorf("store: top: %w", err)
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// Verify runs SQLite's quick integrity check and returns how many
+// characters the database holds.
+func (s *Store) Verify() (int, error) {
+	var res string
+	if err := s.db.QueryRow(`PRAGMA quick_check`).Scan(&res); err != nil {
+		return 0, fmt.Errorf("store: verify: %w", err)
+	}
+	if res != "ok" {
+		return 0, fmt.Errorf("store: verify: %s", res)
+	}
+	return s.Count()
 }
 
 // Close flushes and closes the database.
@@ -137,16 +272,22 @@ func (s *Store) SavePlayer(p *game.StoredPlayer) error {
 		return fmt.Errorf("store: save %s: %w", p.Name, err)
 	}
 	now := time.Now().Unix()
+	level, xp, quests, kills := rankOf(&p.Data)
 	_, err = s.db.Exec(`
-		INSERT INTO players (key, name, name_lower, data, play_seconds, created_at, last_seen)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO players (key, name, name_lower, data, play_seconds, created_at, last_seen, level, xp, quests, kills, last_ip)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(key) DO UPDATE SET
 			name         = excluded.name,
 			name_lower   = excluded.name_lower,
 			data         = excluded.data,
 			play_seconds = excluded.play_seconds,
-			last_seen    = excluded.last_seen`,
-		p.Key, p.Name, strings.ToLower(p.Name), string(data), int64(p.Played.Seconds()), now, now)
+			last_seen    = excluded.last_seen,
+			level        = excluded.level,
+			xp           = excluded.xp,
+			quests       = excluded.quests,
+			kills        = excluded.kills,
+			last_ip      = CASE WHEN excluded.last_ip = '' THEN players.last_ip ELSE excluded.last_ip END`,
+		p.Key, p.Name, strings.ToLower(p.Name), string(data), int64(p.Played.Seconds()), now, now, level, xp, quests, kills, p.IP)
 	if err != nil {
 		return fmt.Errorf("store: save %s: %w", p.Name, err)
 	}

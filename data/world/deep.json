@@ -1,0 +1,73 @@
+{
+  "rooms": {
+    "loc.deep_gate": {
+      "name": "The Round Gate",
+      "description": "A stone gate as round as a shield and three times as tall. Runes around it read ONLY TOGETHER, and the gate only turns when several hands push at once.",
+      "min_group": 2,
+      "exits": { "up": "loc.dwarf_forge", "north": "loc.deep_hall" }
+    },
+    "loc.deep_hall": {
+      "name": "Hall of Sentinels",
+      "description": "Pillars carved as dwarven warriors hold up a ceiling lost in darkness. Two of them are not pillars.",
+      "exits": { "south": "loc.deep_gate", "north": "loc.wyrm_lair", "east": "loc.deep_vault" },
+      "spawns": [{ "npc": "npc.sentinel", "count": 2 }]
+    },
+    "loc.deep_vault": {
+      "name": "Sealed Vault",
+      "description": "Shelves of stone jars, most of them broken. A few still hold the old dwarves' remedies.",
+      "exits": { "west": "loc.deep_hall" },
+      "items": ["item.deep_elixir"]
+    },
+    "loc.wyrm_lair": {
+      "name": "Lair of the Ashen Wyrm",
+      "description": "Heat, ash and a mountain of melted gold. Something vast uncoils on top of it and opens one ember eye.",
+      "exits": { "south": "loc.deep_hall" },
+      "spawns": [{ "npc": "npc.wyrm", "count": 1 }]
+    }
+  },
+
+  "items": {
+    "item.deep_elixir": { "name": "Deep Elixir", "description": "A thick golden draught. Dwarves drank it before battle, and after.", "obtainable": true, "heal": 150 },
+    "item.wyrm_fang": { "name": "Wyrm Fang", "description": "A fang as long as a sword, still hot. The hilt was added later, by someone brave.", "obtainable": true, "attack": 20, "min_level": 7 },
+    "item.wyrmscale_mail": { "name": "Wyrmscale Mail", "description": "Overlapping black scales that shrug off blades and fire alike.", "obtainable": true, "defense": 10, "min_level": 7 }
+  },
+
+  "npcs": {
+    "npc.sentinel": {
+      "name": "Stone Sentinel",
+      "description": "A dwarven statue that steps down from its plinth, axe raised.",
+      "role": "enemy",
+      "hostile": true,
+      "aggressive": true,
+      "dialogue": ["ONLY. TOGETHER."],
+      "stats": { "hp": 70, "attack": 12, "defense": 5, "speed": 3 },
+      "scale_per_player": 50,
+      "loot": ["item.gold_coin"]
+    },
+    "npc.wyrm": {
+      "name": "Ashen Wyrm",
+      "description": "A dragon grown fat on dwarven gold, its scales the colour of cold ash.",
+      "role": "enemy",
+      "hostile": true,
+      "dialogue": ["More little diggers. The gold remembers every one of you."],
+      "stats": { "hp": 260, "attack": 17, "defense": 6, "speed": 4 },
+      "scale_per_player": 80,
+      "xp": 400,
+      "loot": ["item.wyrm_fang", "item.wyrmscale_mail"]
+    }
+  },
+
+  "quests": {
+    "q.ashen_wyrm": {
+      "title": "Only Together",
+      "description": "Behind the round gate under the forge sleeps the wyrm that drove the old dwarves out. It takes a group to open the gate, and more to come back.",
+      "giver": "npc.foreman",
+      "requires": ["q.golem_heart"],
+      "steps": [
+        { "description": "Open the round gate below the Forge of the Deep, with at least one companion.", "type": "visit", "target": "loc.deep_gate" },
+        { "description": "Slay the Ashen Wyrm.", "type": "kill", "target": "npc.wyrm" }
+      ],
+      "reward": { "xp": 800, "items": ["item.gold_coin", "item.gold_coin", "item.gold_coin"], "max_hp": 25, "heal_full": true }
+    }
+  }
+}

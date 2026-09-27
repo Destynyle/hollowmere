@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"hollowmere/internal/game"
+	"hollowmere/internal/limit"
 	"hollowmere/internal/proto"
 )
 
@@ -36,6 +37,7 @@ type Conn interface {
 type Config struct {
 	MaxConnections   int
 	MaxConnPerWindow int
+	MaxConnPerIP     int // simultaneous connections from one address
 	ConnWindow       time.Duration
 	CommandsPerSec   float64
 	CommandBurst     float64
@@ -49,12 +51,14 @@ func DefaultConfig() Config {
 	return Config{
 		MaxConnections:   512,
 		MaxConnPerWindow: 20,
-		ConnWindow:       10 * time.Second,
-		CommandsPerSec:   10,
-		CommandBurst:     40,
-		MaxViolations:    30,
-		OutQueue:         512,
-		IdleTimeout:      30 * time.Minute,
+		// Generous enough for a school or a family behind one address.
+		MaxConnPerIP:   16,
+		ConnWindow:     10 * time.Second,
+		CommandsPerSec: 10,
+		CommandBurst:   40,
+		MaxViolations:  30,
+		OutQueue:       512,
+		IdleTimeout:    30 * time.Minute,
 	}
 }
 
@@ -112,6 +116,19 @@ func (m *Manager) Admit(ip string) *proto.Error {
 		m.log.Warn("abuse_rapid_connections", "ip", ip, "attempts", len(recent),
 			"window_s", m.cfg.ConnWindow.Seconds())
 		return proto.ErrConnectionFailed
+	}
+	if m.cfg.MaxConnPerIP > 0 {
+		same := 0
+		for s := range m.sessions {
+			if s.conn.RemoteIP() == ip {
+				same++
+			}
+		}
+		if same >= m.cfg.MaxConnPerIP {
+			m.mx.ConnectionsRejected.Add(1)
+			m.log.Warn("connection_rejected_per_ip", "ip", ip, "open", same)
+			return proto.ErrConnectionFailed
+		}
 	}
 	if len(m.sessions) >= m.cfg.MaxConnections {
 		m.mx.ConnectionsRejected.Add(1)
@@ -185,8 +202,7 @@ type Session struct {
 	name   string
 
 	player     *game.Player
-	tokens     float64
-	last       time.Time
+	bucket     *limit.Bucket
 	violations int
 }
 
@@ -199,8 +215,7 @@ func (m *Manager) Serve(conn Conn) {
 		log:    m.log.With("ip", conn.RemoteIP(), "transport", conn.Kind()),
 		out:    make(chan string, m.cfg.OutQueue),
 		done:   make(chan struct{}),
-		tokens: m.cfg.CommandBurst,
-		last:   time.Now(),
+		bucket: limit.New(m.cfg.CommandsPerSec, m.cfg.CommandBurst),
 	}
 	m.add(s)
 	defer m.remove(s)
@@ -326,19 +341,7 @@ func closeReasonFor(err error) string {
 }
 
 // allow implements the per-connection token bucket.
-func (s *Session) allow() bool {
-	now := time.Now()
-	s.tokens += now.Sub(s.last).Seconds() * s.mgr.cfg.CommandsPerSec
-	if s.tokens > s.mgr.cfg.CommandBurst {
-		s.tokens = s.mgr.cfg.CommandBurst
-	}
-	s.last = now
-	if s.tokens < 1 {
-		return false
-	}
-	s.tokens--
-	return true
-}
+func (s *Session) allow() bool { return s.bucket.Allow(time.Now()) }
 
 // handleLine processes one received line; false ends the session.
 func (s *Session) handleLine(line string) bool {
@@ -356,18 +359,22 @@ func (s *Session) handleLine(line string) bool {
 		return true
 	}
 	if err := proto.ValidateLine(line); err != nil {
-		s.log.Warn("malformed_line", "player", s.PlayerName(), "raw", truncate(line, 256))
+		s.log.Warn("malformed_line", "player", s.PlayerName(), "raw", truncate(Redact(line), 256))
 		s.reply(err.Error(), "")
 		return true
 	}
 	cmd, err := proto.ParseCommand(line)
 	if err != nil {
-		s.log.Warn("malformed_line", "player", s.PlayerName(), "raw", truncate(line, 256))
+		s.log.Warn("malformed_line", "player", s.PlayerName(), "raw", truncate(Redact(line), 256))
 		s.reply(err.Error(), "")
 		return true
 	}
 	s.mgr.mx.Commands.Add(1)
-	s.log.Debug("command", "player", s.PlayerName(), "command", cmd.Name, "args", truncate(cmd.Args, 256))
+	args := cmd.Args
+	if cmd.Name == "CONNECT" && len(cmd.Word) >= 2 {
+		args = cmd.Word[0] + " [key]"
+	}
+	s.log.Debug("command", "player", s.PlayerName(), "command", cmd.Name, "args", truncate(args, 256))
 
 	switch {
 	case cmd.Name == "QUIT":
@@ -438,6 +445,16 @@ func (s *Session) cleanup() {
 		s.mgr.game.Disconnect(s.player, s.closeReason())
 	}
 	s.log.Info("connection_closed", "player", s.PlayerName(), "reason", s.closeReason())
+}
+
+// Redact hides the resume key of a CONNECT line, so that no log level ever
+// records a secret: "CONNECT marin <key>" becomes "CONNECT marin [key]".
+func Redact(line string) string {
+	f := strings.Fields(line)
+	if len(f) >= 3 && strings.EqualFold(f[0], "CONNECT") {
+		return f[0] + " " + f[1] + " [key]"
+	}
+	return line
 }
 
 func truncate(s string, n int) string {

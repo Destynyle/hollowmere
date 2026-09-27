@@ -1,0 +1,17 @@
+# Scrapes the game server inside the compose network. The token file is
+# the same one the server reads (state/metrics_token).
+global:
+  scrape_interval: 15s
+  evaluation_interval: 30s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: hollowmere
+    metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/metrics_token
+    static_configs:
+      - targets: ["hollowmere:8080"]

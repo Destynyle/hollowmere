@@ -2,6 +2,7 @@ package game
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"hollowmere/internal/proto"
@@ -23,6 +24,22 @@ func init() {
 		"DROP":      (*Game).cmdDrop,
 		"INVENTORY": (*Game).cmdInventory,
 		"TALK":      (*Game).cmdTalk,
+		"SAY":       (*Game).cmdSay,
+		"EQUIP":     (*Game).cmdEquip,
+		"UNEQUIP":   (*Game).cmdUnequip,
+		"TRAIN":     (*Game).cmdTrain,
+		"SKILL":     (*Game).cmdSkill,
+		"SKILLS":    (*Game).cmdSkills,
+		"TELL":      (*Game).cmdTell,
+		"FRIEND":    (*Game).cmdFriend,
+		"TOP":       (*Game).cmdTop,
+		"TRADE":     (*Game).cmdTrade,
+		"ANNOUNCE":  (*Game).cmdAnnounce,
+		"KICK":      (*Game).cmdKick,
+		"MUTE":      (*Game).cmdMute,
+		"UNMUTE":    (*Game).cmdUnmute,
+		"BAN":       (*Game).cmdBan,
+		"UNBAN":     (*Game).cmdUnban,
 		"ATTACK":    (*Game).cmdAttack,
 		"DEFEND":    (*Game).cmdDefend,
 		"FLEE":      (*Game).cmdFlee,
@@ -149,7 +166,7 @@ func (g *Game) cmdLook(p *Player, c proto.Command) (string, *proto.Error) {
 		n := g.npcs[id]
 		ln := lookNPC{ID: id, Name: n.Def.Name, Role: n.Def.Role, Hostile: n.Def.Hostile}
 		if n.Def.Hostile {
-			ln.HP, ln.MaxHP = n.HP, n.Def.Stats.HP
+			ln.HP, ln.MaxHP = n.HP, n.MaxHP
 		}
 		rep.Details.NPCs = append(rep.Details.NPCs, ln)
 	}
@@ -176,8 +193,34 @@ func (g *Game) cmdMove(p *Player, c proto.Command) (string, *proto.Error) {
 	if p.Target != "" {
 		return "", proto.ErrInCombat
 	}
+	if err := g.mayEnter(p, to); err != nil {
+		return "", err
+	}
 	g.movePlayer(p, to)
 	return "room=" + to, nil
+}
+
+// mayEnter checks the group requirement of a room: at least MinGroup
+// members of the player's group, counting those already inside and those
+// entering with them (standing in the same room).
+func (g *Game) mayEnter(p *Player, to string) *proto.Error {
+	need := g.rooms[to].Def.MinGroup
+	if need <= 1 {
+		return nil
+	}
+	if p.Group == nil {
+		return proto.ErrGroupRequired
+	}
+	n := 0
+	for _, m := range p.Group.Members {
+		if mp := g.player(m); mp != nil && (mp.Room == p.Room || mp.Room == to) {
+			n++
+		}
+	}
+	if n < need {
+		return proto.ErrGroupRequired
+	}
+	return nil
 }
 
 func (g *Game) cmdInspect(p *Player, c proto.Command) (string, *proto.Error) {
@@ -191,6 +234,7 @@ func (g *Game) cmdInspect(p *Player, c proto.Command) (string, *proto.Error) {
 			"id": id, "type": "item", "name": it.Def.Name, "description": it.Def.Description,
 			"obtainable": it.Def.Obtainable, "attack": it.Def.Attack, "defense": it.Def.Defense,
 			"heal": it.Def.Heal, "held": it.Holder == p.Name,
+			"slot": it.Def.Slot, "min_level": it.Def.MinLevel, "equipped": p.Equipped[it.Def.Slot] == id && id != "",
 		}), nil
 	}
 	if id := resolve(c.Args, g.npcCands(p.Room)); id != "" {
@@ -200,7 +244,7 @@ func (g *Game) cmdInspect(p *Player, c proto.Command) (string, *proto.Error) {
 			"role": n.Def.Role, "hostile": n.Def.Hostile,
 		}
 		if n.Def.Hostile {
-			out["hp"], out["max_hp"] = n.HP, n.Def.Stats.HP
+			out["hp"], out["max_hp"] = n.HP, n.MaxHP
 		}
 		return jsonLine(out), nil
 	}
@@ -215,6 +259,9 @@ func (g *Game) cmdHelp(p *Player, c proto.Command) (string, *proto.Error) {
 // Communication
 
 func (g *Game) cmdChat(p *Player, c proto.Command) (string, *proto.Error) {
+	if g.muted(p) {
+		return "", proto.ErrMuted
+	}
 	scope, msg, _ := strings.Cut(c.Args, " ")
 	msg = strings.TrimSpace(msg)
 	if msg == "" {
@@ -360,9 +407,10 @@ func (g *Game) cmdTake(p *Player, c proto.Command) (string, *proto.Error) {
 		return "", proto.ErrItemNotObtain
 	}
 	g.giveItem(it, p)
+	g.autoEquip(p, it)
 	g.log.Info("item_taken", "player", p.Name, "item", id, "room", p.Room)
 	g.broadcastRoom(p.Room, p.Name, "EVT ROOM ITEM TAKE "+p.Name+" "+id)
-	g.advanceFetchQuests(p)
+	g.refreshQuests(p)
 	return "taken=" + id, nil
 }
 
@@ -377,7 +425,7 @@ func (g *Game) cmdDrop(p *Player, c proto.Command) (string, *proto.Error) {
 	g.placeItem(g.items[id], p.Room)
 	g.log.Info("item_dropped", "player", p.Name, "item", id, "room", p.Room)
 	g.broadcastRoom(p.Room, p.Name, "EVT ROOM ITEM DROP "+p.Name+" "+id)
-	g.advanceFetchQuests(p)
+	g.refreshQuests(p)
 	return "dropped=" + id, nil
 }
 
@@ -415,6 +463,21 @@ func (g *Game) cmdUse(p *Player, c proto.Command) (string, *proto.Error) {
 // ---------------------------------------------------------------------------
 // NPCs
 
+type talkOption struct {
+	N    int    `json:"n"`
+	Text string `json:"text"`
+}
+
+// talkReply extends the RFC reply (npc, name, dialogue) with the options of
+// a dialogue tree. No options means the conversation is over.
+type talkReply struct {
+	NPC      string       `json:"npc"`
+	Name     string       `json:"name"`
+	Dialogue string       `json:"dialogue"`
+	Options  []talkOption `json:"options,omitempty"`
+	Quest    *questReply  `json:"quest,omitempty"`
+}
+
 func (g *Game) cmdTalk(p *Player, c proto.Command) (string, *proto.Error) {
 	if err := requireArgs(c); err != nil {
 		return "", err
@@ -424,6 +487,12 @@ func (g *Game) cmdTalk(p *Player, c proto.Command) (string, *proto.Error) {
 		return "", proto.ErrNPCNotFound
 	}
 	n := g.npcs[id]
+	g.log.Info("npc_talk", "player", p.Name, "npc", id, "room", p.Room)
+	g.countObjective(p, "talk", n.DefID)
+	if n.Def.DialogueTree != nil {
+		p.talking = n.ID
+		return jsonLine(g.showNode(p, n, "start")), nil
+	}
 	line := "..."
 	if len(n.Def.Dialogue) > 0 {
 		i := p.talkIndex[n.DefID]
@@ -433,8 +502,81 @@ func (g *Game) cmdTalk(p *Player, c proto.Command) (string, *proto.Error) {
 	if hint := g.questHint(p, n); hint != "" {
 		line += " " + hint
 	}
-	g.log.Info("npc_talk", "player", p.Name, "npc", id, "room", p.Room)
-	return jsonLine(map[string]string{"npc": id, "name": n.Def.Name, "dialogue": line}), nil
+	return jsonLine(talkReply{NPC: id, Name: n.Def.Name, Dialogue: line}), nil
+}
+
+// cmdSay picks option n (1-based, among the options shown) of the open
+// conversation.
+func (g *Game) cmdSay(p *Player, c proto.Command) (string, *proto.Error) {
+	if len(c.Word) != 1 {
+		return "", proto.ErrMalformed
+	}
+	n := g.npcs[p.talking]
+	if n == nil || !n.Alive || n.Room != p.Room {
+		p.talking, p.talkNode = "", ""
+		return "", proto.ErrNotTalking
+	}
+	opts := g.visibleOptions(p, n.Def.DialogueTree[p.talkNode])
+	k, err := strconv.Atoi(c.Word[0])
+	if err != nil || k < 1 || k > len(opts) {
+		return "", proto.ErrInvalidChoice
+	}
+	o := opts[k-1]
+	g.log.Info("npc_say", "player", p.Name, "npc", n.ID, "node", p.talkNode, "choice", k, "next", o.Next)
+	if o.SetFlag != "" {
+		p.Flags[o.SetFlag] = true
+	}
+	var qr *questReply
+	if o.Quest != "" {
+		if r, perr := g.questWith(p, n, o.Quest); perr == nil {
+			qr = &r
+		}
+	}
+	var rep talkReply
+	if o.Next == "" {
+		p.talking, p.talkNode = "", ""
+		rep = talkReply{NPC: n.ID, Name: n.Def.Name}
+	} else {
+		rep = g.showNode(p, n, o.Next)
+	}
+	rep.Quest = qr
+	return jsonLine(rep), nil
+}
+
+// showNode moves the conversation to a node and renders it. A node with no
+// option left to choose ends the conversation.
+func (g *Game) showNode(p *Player, n *NPC, node string) talkReply {
+	def := n.Def.DialogueTree[node]
+	rep := talkReply{NPC: n.ID, Name: n.Def.Name, Dialogue: def.Text}
+	for i, o := range g.visibleOptions(p, def) {
+		rep.Options = append(rep.Options, talkOption{N: i + 1, Text: o.Text})
+	}
+	if len(rep.Options) == 0 {
+		p.talking, p.talkNode = "", ""
+	} else {
+		p.talkNode = node
+	}
+	return rep
+}
+
+// visibleOptions filters the options a player may choose: the condition
+// must hold, and an option carrying a quest only shows while that quest
+// can still be accepted or is under way.
+func (g *Game) visibleOptions(p *Player, node *DialogueNode) []DialogueOption {
+	if node == nil {
+		return nil
+	}
+	var out []DialogueOption
+	for _, o := range node.Options {
+		if !g.holds(p, o.If) {
+			continue
+		}
+		if o.Quest != "" && !g.questIs(p, o.Quest, "available") && !g.questIs(p, o.Quest, "active") {
+			continue
+		}
+		out = append(out, o)
+	}
+	return out
 }
 
 func minInt(a, b int) int {

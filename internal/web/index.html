@@ -60,6 +60,7 @@
     <div id="dialogue" class="dialogue" hidden>
       <div class="speaker" id="dialogue-speaker"></div>
       <div class="line" id="dialogue-line"></div>
+      <ol class="options" id="dialogue-options"></ol>
     </div>
   </section>
 
@@ -71,6 +72,9 @@
       <div class="hp-bar"><div id="hp-fill"></div></div>
       <span id="hp-text">—</span>
     </div>
+    <div class="level-line"><b id="level-text">Level —</b> <span id="xp-text" class="muted"></span></div>
+    <div class="hp-bar xp"><div id="xp-fill"></div></div>
+    <ul id="stats" class="list stats"></ul>
     <div id="combat-box" class="combat" hidden>
       <div>Fighting <b id="combat-target"></b></div>
       <div class="hp-bar enemy"><div id="enemy-fill"></div></div>
@@ -79,6 +83,16 @@
         <button id="btn-defend">DEFEND</button>
         <button id="btn-flee">FLEE</button>
       </div>
+    </div>
+
+    <h3>Equipment</h3>
+    <ul id="equipment" class="list"></ul>
+
+    <h3>Skills</h3>
+    <div class="row wrap" id="skills">
+      <button data-skill="strike" title="Power strike" disabled>STRIKE</button>
+      <button data-skill="parry" title="Parry" disabled>PARRY</button>
+      <button data-skill="heal" title="Second wind" disabled>HEAL</button>
     </div>
 
     <h3>Inventory</h3>
@@ -114,6 +128,26 @@
       <button id="btn-group-join">Join</button>
       <button id="btn-group-leave">Leave</button>
     </div>
+
+    <div id="trade-box" class="trade" hidden>
+      <h3>Trade with <span id="trade-with"></span></h3>
+      <div class="trade-cols">
+        <div><b>You give</b> <span id="trade-mine-ok" class="tag quest" hidden>accepted</span><ul id="trade-mine" class="list"></ul></div>
+        <div><b>You get</b> <span id="trade-theirs-ok" class="tag quest" hidden>accepted</span><ul id="trade-theirs" class="list"></ul></div>
+      </div>
+      <p class="muted">Use “Offer” in your inventory. Any change withdraws both acceptances.</p>
+      <div class="row">
+        <button id="btn-trade-accept">ACCEPT</button>
+        <button id="btn-trade-cancel" class="danger">CANCEL</button>
+      </div>
+    </div>
+
+    <h3>Friends <a class="muted small" href="/top" target="_blank" rel="noopener">leaderboard ↗</a></h3>
+    <ul id="friends" class="list"></ul>
+    <div class="row">
+      <input id="friend-name" placeholder="player" aria-label="Friend to add">
+      <button id="btn-friend-add">Add</button>
+    </div>
   </section>
 
   <!-- Actions ------------------------------------------------------------->
@@ -144,11 +178,13 @@
       <button class="tab active" data-scope="GLOBAL">Global <span class="badge" data-badge="GLOBAL"></span></button>
       <button class="tab" data-scope="ROOM">Room <span class="badge" data-badge="ROOM"></span></button>
       <button class="tab" data-scope="GROUP">Group <span class="badge" data-badge="GROUP"></span></button>
+      <button class="tab" data-scope="PRIVATE">Private <span class="badge" data-badge="PRIVATE"></span></button>
     </div>
     <div class="chat-views">
       <ol class="feed" data-feed="GLOBAL"></ol>
       <ol class="feed" data-feed="ROOM" hidden></ol>
       <ol class="feed" data-feed="GROUP" hidden></ol>
+      <ol class="feed" data-feed="PRIVATE" hidden></ol>
     </div>
     <form id="chat-form" class="row">
       <input id="chat-input" placeholder="Say something to Global…" autocomplete="off" aria-label="Chat message">

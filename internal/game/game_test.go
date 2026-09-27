@@ -41,7 +41,7 @@ func (r *recorder) has(prefix string) bool {
 
 func newTestGame(t *testing.T) *Game {
 	t.Helper()
-	w, err := LoadWorld("../../data/world.json")
+	w, err := LoadWorld("../../data/world")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func walk(t *testing.T, g *Game, p *Player, dirs ...string) {
 }
 
 func TestWorldRequirements(t *testing.T) {
-	w, err := LoadWorld("../../data/world.json")
+	w, err := LoadWorld("../../data/world")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -441,8 +441,8 @@ func TestQuestChain(t *testing.T) {
 	if q.Status != "completed" || q.Granted[0] != "item.iron_sword" {
 		t.Fatal(q)
 	}
-	if g.playerAttack(p) != g.W.Settings.BaseAttack+9 {
-		t.Fatal("sword bonus not applied")
+	if p.Equipped["weapon"] != "item.iron_sword" || g.playerAttack(p) != g.W.Settings.BaseAttack+9+p.Level/2 {
+		t.Fatalf("sword not worn: %v attack=%d level=%d", p.Equipped, g.playerAttack(p), p.Level)
 	}
 }
 

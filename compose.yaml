@@ -1,3 +1,11 @@
+# Hollowmere in production.
+#
+#   docker compose up -d --build                         the game alone
+#   docker compose --profile tunnel up -d                + Cloudflare tunnel
+#   docker compose --profile monitoring up -d            + Prometheus and Grafana
+#
+# Settings and secrets live in .env (copy .env.example); deploy/README.md
+# walks through the whole setup.
 services:
   hollowmere:
     build: .
@@ -5,24 +13,26 @@ services:
     container_name: hollowmere
     restart: unless-stopped
     ports:
-      # The web client and the WebSocket. Behind a tunnel, bind to
-      # localhost only: "127.0.0.1:8080:8080".
-      - "8080:8080"
-      # Raw TCP for the CLI client; drop this line to disable it.
-      - "4243:4243"
+      # Behind the tunnel, set HTTP_BIND=127.0.0.1 so that nobody reaches
+      # the server directly and forges the client IP headers.
+      - "${HTTP_BIND:-0.0.0.0}:8080:8080"
+      # Raw TCP for the terminal client: a tunnel does not carry it. Open
+      # 4243 on the router, or keep TCP_BIND=127.0.0.1 for the LAN only.
+      - "${TCP_BIND:-0.0.0.0}:4243:4243"
     environment:
       TAP_HTTP: "0.0.0.0:8080"
       TAP_TCP: "0.0.0.0:4243"
-      TAP_LOG_LEVEL: "info"
+      TAP_LOG_LEVEL: "${TAP_LOG_LEVEL:-info}"
       TAP_LOG_FILE: "/data/server.log"
       TAP_DB: "/data/hollowmere.db"
       # Hosts allowed to open a WebSocket (same-origin is always allowed).
       TAP_ORIGINS: "${TAP_ORIGINS:-}"
-      # Set to 1 only when a proxy or tunnel you control sits in front.
+      # 1 only when a proxy or tunnel you control sits in front.
       TAP_TRUST_PROXY: "${TAP_TRUST_PROXY:-}"
-      TAP_METRICS_TOKEN: "${TAP_METRICS_TOKEN:-}"
+      # /metrics token, shared with Prometheus: state/metrics_token.
+      TAP_METRICS_TOKEN_FILE: "${TAP_METRICS_TOKEN_FILE:-}"
     volumes:
-      # Logs, the SQLite save file and its backups.
+      # Logs, the SQLite save file, its backups and the metrics token.
       - ./state:/data
     # A small box is the target: keep the game from eating the machine.
     deploy:
@@ -34,3 +44,58 @@ services:
       options:
         max-size: "10m"
         max-file: "5"
+
+  # Cloudflare tunnel: no port to open on the router. Create the tunnel in
+  # the Cloudflare dashboard (Zero Trust > Networks > Tunnels), route your
+  # hostname to http://hollowmere:8080, and put its token in .env.
+  cloudflared:
+    profiles: ["tunnel"]
+    image: cloudflare/cloudflared:2025.8.0
+    container_name: hollowmere-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: "${CLOUDFLARE_TUNNEL_TOKEN:-}"
+    depends_on:
+      - hollowmere
+
+  prometheus:
+    profiles: ["monitoring"]
+    image: prom/prometheus:v3.5.0
+    container_name: hollowmere-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./state/metrics_token:/etc/prometheus/metrics_token:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - hollowmere
+
+  grafana:
+    profiles: ["monitoring"]
+    image: grafana/grafana-oss:12.1.0
+    container_name: hollowmere-grafana
+    restart: unless-stopped
+    ports:
+      # Local only: reach it through an ssh tunnel (ssh -L 3000:localhost:3000).
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus-data:
+  grafana-data:

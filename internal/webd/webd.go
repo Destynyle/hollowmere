@@ -5,6 +5,7 @@ package webd
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io/fs"
@@ -59,6 +60,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/ws", s.handleWS)
 	mux.HandleFunc("/healthz", s.handleHealth)
 	mux.HandleFunc("/metrics", s.handleMetrics)
+	mux.HandleFunc("/top", s.handleTop)
+	mux.HandleFunc("/top.json", s.handleTopJSON)
 	return s.withCommonHeaders(mux)
 }
 
@@ -152,12 +155,26 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.MetricsToken != "" && r.URL.Query().Get("token") != s.cfg.MetricsToken {
+	if !s.metricsAuthorized(r) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	s.mgr.Metrics().WriteProm(w, s.mgr.Game().PlayerCount())
+}
+
+// metricsAuthorized accepts the token as "Authorization: Bearer <token>"
+// (what Prometheus sends, and it stays out of access logs) or as ?token=.
+func (s *Server) metricsAuthorized(r *http.Request) bool {
+	want := s.cfg.MetricsToken
+	if want == "" {
+		return true
+	}
+	got := r.URL.Query().Get("token")
+	if bearer, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
+		got = strings.TrimSpace(bearer)
+	}
+	return subtle.ConstantTimeCompare([]byte(got), []byte(want)) == 1
 }
 
 // wsConn adapts a WebSocket to session.Conn: one text message per

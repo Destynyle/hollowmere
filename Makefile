@@ -2,7 +2,7 @@ GO       ?= $(shell test -x $(HOME)/sdk/go1.27.1/bin/go && echo $(HOME)/sdk/go1.
 BIN      := bin
 SERVER   := $(BIN)/hollowmere
 CLIENT   := $(BIN)/tapcli
-WORLD    ?= data/world.json
+WORLD    ?= data/world
 HTTP     ?= 127.0.0.1:8080
 TCP      ?= 127.0.0.1:4243
 ADDR     ?= 127.0.0.1:4243
@@ -11,7 +11,7 @@ IMAGE    ?= hollowmere:dev
 
 SOURCES  := $(shell find cmd internal -type f \( -name '*.go' -o -name '*.html' -o -name '*.css' -o -name '*.js' \)) go.mod go.sum
 
-.PHONY: all install build run run-client lint test check-world docker docker-run clean fclean re
+.PHONY: all install build run run-client lint test check-world demo demo-serve docker docker-run clean fclean re
 
 all: build
 
@@ -46,11 +46,19 @@ lint: check-world
 	@if command -v node >/dev/null 2>&1; then node --check internal/web/app.js; fi
 
 check-world: $(SERVER)
-	./$(SERVER) -check -world $(WORLD) >/dev/null
+	./$(SERVER) -check -world $(WORLD) -log-level error >/dev/null
 
 ## test: unit and integration tests with the race detector
 test:
 	$(GO) test -race -count=1 ./...
+
+## demo: build the static WebAssembly demo into ./site (GitHub Pages)
+demo:
+	GO=$(GO) web-demo/build.sh site
+
+## demo-serve: build the demo and serve it on http://127.0.0.1:8000
+demo-serve: demo
+	cd site && python3 -m http.server 8000 --bind 127.0.0.1
 
 ## docker: build the production image
 docker:
@@ -65,6 +73,6 @@ clean:
 	rm -f server.log
 
 fclean: clean
-	rm -rf $(BIN)
+	rm -rf $(BIN) site
 
 re: fclean all

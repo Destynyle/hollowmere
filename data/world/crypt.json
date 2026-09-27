@@ -1,0 +1,116 @@
+{
+  "rooms": {
+    "loc.graveyard": {
+      "name": "Misty Graveyard",
+      "description": "Crooked headstones poke out of the fog. Something rattles between the graves. Behind the oldest tomb, worn steps lead down into the dark.",
+      "exits": { "north": "loc.chapel", "east": "loc.gate", "down": "loc.crypt_stairs" },
+      "items": ["item.herbs"],
+      "spawns": [{ "npc": "npc.skeleton", "count": 1 }]
+    },
+    "loc.crypt_stairs": {
+      "name": "Crypt Stairs",
+      "description": "Narrow steps slick with damp. The air grows colder with every one, and the fog of the graveyard does not follow you down.",
+      "exits": { "up": "loc.graveyard", "south": "loc.crypt_hall" },
+      "items": ["item.candle"]
+    },
+    "loc.crypt_hall": {
+      "name": "Hall of Names",
+      "description": "Names of the hill watch are carved in rows along the walls, most of them worn smooth. Passages open in three directions.",
+      "exits": { "north": "loc.crypt_stairs", "east": "loc.ossuary", "west": "loc.bone_chapel", "south": "loc.edric_tomb" }
+    },
+    "loc.ossuary": {
+      "name": "Ossuary",
+      "description": "Skulls stacked to the ceiling, arranged with terrible care. Something among them is still hungry.",
+      "exits": { "west": "loc.crypt_hall" },
+      "items": ["item.bone"],
+      "spawns": [{ "npc": "npc.ghoul", "count": 1 }]
+    },
+    "loc.bone_chapel": {
+      "name": "Chapel of Bones",
+      "description": "A tiny chapel where the altar is a knight's shield. A pale shape kneels before it, flickering like a candle in a draught.",
+      "exits": { "east": "loc.crypt_hall" },
+      "spawns": [{ "npc": "npc.ghost", "count": 1 }]
+    },
+    "loc.edric_tomb": {
+      "name": "Edric's Tomb",
+      "description": "A stone sarcophagus with its lid pushed aside. Whatever should lie in it now stands guard in front of it.",
+      "exits": { "north": "loc.crypt_hall" },
+      "spawns": [{ "npc": "npc.wight", "count": 1 }]
+    }
+  },
+
+  "items": {
+    "item.bone": { "name": "Old Bone", "description": "A bone that rattled a moment ago.", "obtainable": true },
+    "item.candle": { "name": "Grave Candle", "description": "A fat black candle. It burns without melting.", "obtainable": true, "attack": 1 },
+    "item.barrow_shield": { "name": "Barrow Shield", "description": "A tarnished shield bearing the hill watch's tower. Still solid.", "obtainable": true, "defense": 7, "min_level": 5 }
+  },
+
+  "npcs": {
+    "npc.skeleton": {
+      "name": "Restless Skeleton",
+      "description": "Bones held together by spite.",
+      "role": "enemy",
+      "hostile": true,
+      "dialogue": ["*rattle rattle*"],
+      "stats": { "hp": 20, "attack": 4, "defense": 1, "speed": 3 },
+      "loot": ["item.bone"]
+    },
+    "npc.ghoul": {
+      "name": "Crypt Ghoul",
+      "description": "Grey skin stretched over too many teeth.",
+      "role": "enemy",
+      "hostile": true,
+      "aggressive": true,
+      "dialogue": ["Hhhhungry..."],
+      "stats": { "hp": 40, "attack": 8, "defense": 2, "speed": 6 },
+      "loot": ["item.bone"]
+    },
+    "npc.wight": {
+      "name": "Barrow Wight",
+      "description": "Armour full of cold light, and nothing else. It wears Edric's colours.",
+      "role": "enemy",
+      "hostile": true,
+      "dialogue": ["None shall wake the captain."],
+      "stats": { "hp": 90, "attack": 12, "defense": 4, "speed": 4 },
+      "loot": ["item.barrow_shield"]
+    },
+    "npc.ghost": {
+      "name": "Sir Edric's Shade",
+      "description": "The outline of a knight, kneeling, translucent as breath on glass.",
+      "role": "dialogue",
+      "dialogue_tree": {
+        "start": {
+          "text": "Living one... you should not be below.",
+          "options": [
+            { "text": "Who are you?", "next": "edric" },
+            { "text": "Father Aldric sent me. The tower is lit again.", "next": "sent", "if": { "quest": "q.hollow_king", "status": "active" } },
+            { "text": "I'll leave you in peace.", "next": "" }
+          ]
+        },
+        "edric": {
+          "text": "Edric, once captain of the hill watch. I sealed the Hollow King in his tower, and with his last breath he sealed me here, beside my own bones.",
+          "options": [
+            { "text": "How was he sealed?", "next": "seal" },
+            { "text": "Rest now, captain.", "next": "" }
+          ]
+        },
+        "seal": {
+          "text": "With a bell, a blade and a promise. The bell is cracked, the blade is buried with me, and the promise... promises wear thin over a hundred years.",
+          "options": [
+            { "text": "Back.", "next": "start" }
+          ]
+        },
+        "sent": {
+          "text": "Then it is time. My wight guards the tomb to the south; it wears my armour and my oath, twisted. Break it. Then climb the hill and end what I could only pause.",
+          "options": [
+            { "text": "I will.", "next": "" },
+            { "text": "Any advice?", "next": "advice" }
+          ]
+        },
+        "advice": {
+          "text": "The harpies on the stairs will try to throw you down. Carry something to heal. And when you face him, do not listen to his voice. Only to your own."
+        }
+      }
+    }
+  }
+}

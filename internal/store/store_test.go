@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 	"strings"
@@ -149,7 +150,7 @@ func (r *recorder) has(prefix string) bool {
 
 func newWorld(t *testing.T, s *Store) *game.Game {
 	t.Helper()
-	w, err := game.LoadWorld("../../data/world.json")
+	w, err := game.LoadWorld("../../data/world")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,4 +268,55 @@ func TestSaveAllAndRestart(t *testing.T) {
 	if back.Room != "loc.bakery" || back.MaxHP != 150 {
 		t.Fatalf("autosave lost: room=%s maxhp=%d", back.Room, back.MaxHP)
 	}
+}
+
+func TestSchemaMigrationAndTop(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "old.db")
+	// A database as schema version 1 left it.
+	raw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`CREATE TABLE meta (k TEXT PRIMARY KEY, v TEXT NOT NULL)`,
+		`INSERT INTO meta VALUES ('schema_version', '1')`,
+		`CREATE TABLE players (key TEXT PRIMARY KEY, name TEXT NOT NULL, name_lower TEXT NOT NULL UNIQUE,
+			data TEXT NOT NULL, play_seconds INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, last_seen INTEGER NOT NULL)`,
+		`INSERT INTO players VALUES ('k1', 'Old', 'old', '{"version":2,"level":3,"xp":10,"kills":7,
+			"quests":[{"id":"a","status":"completed"},{"id":"b","status":"completed"},{"id":"c","status":"active"}]}', 0, 1, 1)`,
+		`INSERT INTO players VALUES ('k2', 'Older', 'older', '{"version":1,"quests":[]}', 0, 1, 1)`,
+	} {
+		if _, err := raw.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	raw.Close()
+
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	top, err := s.Top(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(top) != 2 || top[0].Name != "Old" || top[0].Level != 3 || top[0].Quests != 2 || top[0].Kills != 7 ||
+		top[1].Name != "Older" || top[1].Level != 1 {
+		t.Fatalf("%+v", top)
+	}
+	// Saving keeps the columns current.
+	if err := s.SavePlayer(&game.StoredPlayer{Key: "k2", Name: "Older", Data: game.PlayerSave{Version: 2, Level: 9}}); err != nil {
+		t.Fatal(err)
+	}
+	top, _ = s.Top(1)
+	if top[0].Name != "Older" || top[0].Level != 9 {
+		t.Fatalf("%+v", top)
+	}
+	// Opening again does not migrate twice.
+	s.Close()
+	if s, err = Open(path); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
 }

@@ -1,0 +1,11 @@
+# Hollowmere maintenance. Install with: crontab -e (as the user owning /srv/hollowmere)
+# With Docker, add COMPOSE_SERVICE=hollowmere DB=/data/hollowmere.db DEST=/data/backups
+# to the backup line (the paths are then inside the container's /data volume).
+SHELL=/bin/sh
+PATH=/usr/local/bin:/usr/bin:/bin
+
+# Nightly backup at 04:30, then copy it off the machine.
+30 4 * * * cd /srv/hollowmere && deploy/backup.sh >> state/backup.log 2>&1 && OFFSITE=user@nas:/backups/hollowmere deploy/offsite.sh >> state/backup.log 2>&1
+
+# Health check every 5 minutes (alerts after two failures in a row).
+*/5 * * * * cd /srv/hollowmere && NOTIFY_URL=https://ntfy.sh/CHANGE-ME deploy/healthcheck.sh >/dev/null 2>&1

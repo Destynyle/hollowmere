@@ -1,0 +1,183 @@
+{
+  "rooms": {
+    "loc.forest": {
+      "name": "Whispering Forest",
+      "description": "Tall pines creak in the wind. Paths wind east to a clearing, south to a dark cave and west along an old paved road.",
+      "exits": { "north": "loc.gate", "east": "loc.clearing", "south": "loc.cave", "west": "loc.old_road" },
+      "items": ["item.herbs"],
+      "spawns": [{ "npc": "npc.wolf", "count": 1 }]
+    },
+    "loc.clearing": {
+      "name": "Sunlit Clearing",
+      "description": "A peaceful glade carpeted with wild herbs. A rusty blade lies half-buried in the moss.",
+      "exits": { "west": "loc.forest" },
+      "items": ["item.herbs", "item.herbs", "item.rusty_dagger"]
+    },
+    "loc.cave": {
+      "name": "Goblin Cave",
+      "description": "A damp cave that reeks of smoke. Crude drawings cover the walls, and a tunnel slopes down into the rock.",
+      "exits": { "north": "loc.forest", "down": "loc.goblin_tunnel" },
+      "spawns": [{ "npc": "npc.goblin", "count": 1 }]
+    },
+    "loc.old_road": {
+      "name": "The Old Road",
+      "description": "Paving stones older than the village, heaved up by roots. A fallen tree blocks half the road - a good place for an ambush.",
+      "exits": { "east": "loc.forest", "west": "loc.hunters_camp", "south": "loc.deep_woods" },
+      "spawns": [{ "npc": "npc.bandit", "count": 1 }]
+    },
+    "loc.hunters_camp": {
+      "name": "Hunter's Camp",
+      "description": "A lean-to, a smoking fire and pelts stretched on frames. A cart track runs south toward the hills where the old mine is.",
+      "safe": true,
+      "exits": { "east": "loc.old_road", "south": "loc.mine_entrance" },
+      "items": ["item.dried_meat"],
+      "spawns": [{ "npc": "npc.hunter", "count": 1 }]
+    },
+    "loc.deep_woods": {
+      "name": "Deep Woods",
+      "description": "The canopy closes overhead and the light turns green. Paths lead west to a ring of oaks, south into a web-choked hollow and east toward the smell of marsh.",
+      "exits": { "north": "loc.old_road", "west": "loc.druid_grove", "south": "loc.spider_hollow", "east": "loc.marsh_edge" },
+      "items": ["item.herbs"]
+    },
+    "loc.druid_grove": {
+      "name": "Grove of Thorn",
+      "description": "Seven oaks stand in a perfect ring around a still pool. Pale flowers float on the water and open when you look away.",
+      "safe": true,
+      "exits": { "east": "loc.deep_woods" },
+      "items": ["item.moonpetal"],
+      "spawns": [{ "npc": "npc.druid", "count": 1 }]
+    },
+    "loc.spider_hollow": {
+      "name": "Spider Hollow",
+      "description": "Webs thick as sailcloth hang between the trees. Things are wrapped in them. Some are still moving.",
+      "exits": { "north": "loc.deep_woods" },
+      "spawns": [{ "npc": "npc.spider", "count": 1 }]
+    }
+  },
+
+  "items": {
+    "item.rusty_dagger": { "name": "Rusty Dagger", "description": "Pitted, but still sharp enough.", "obtainable": true, "attack": 4 },
+    "item.wolf_pelt": { "name": "Wolf Pelt", "description": "A thick grey pelt.", "obtainable": true, "defense": 1 },
+    "item.goblin_totem": { "name": "Goblin Totem", "description": "A crude carved idol taken from the goblin chief.", "obtainable": true },
+    "item.dried_meat": { "name": "Dried Meat", "description": "Tough, salty and surprisingly filling.", "obtainable": true, "heal": 15 },
+    "item.moonpetal": { "name": "Moonpetal", "description": "A pale flower that glows faintly. Wenna needs these.", "obtainable": true, "heal": 8 },
+    "item.spider_silk": { "name": "Spider Silk", "description": "A bundle of silk strong enough to hang a cow from.", "obtainable": true },
+    "item.hunters_bow": { "name": "Hunter's Bow", "description": "Rolf's spare bow. Surprisingly handy up close, too.", "obtainable": true, "attack": 7, "min_level": 2 },
+    "item.bandit_cloak": { "name": "Bandit's Cloak", "description": "Dark wool with a lot of hidden pockets, all of them empty.", "obtainable": true, "defense": 2 }
+  },
+
+  "npcs": {
+    "npc.wolf": {
+      "name": "Grey Wolf",
+      "description": "Hungry yellow eyes stare at you.",
+      "role": "enemy",
+      "hostile": true,
+      "aggressive": true,
+      "dialogue": ["Grrrr..."],
+      "stats": { "hp": 30, "attack": 6, "defense": 1, "speed": 8 },
+      "loot": ["item.wolf_pelt"]
+    },
+    "npc.goblin": {
+      "name": "Goblin Chief",
+      "description": "A scarred goblin with a crown of bones.",
+      "role": "enemy",
+      "hostile": true,
+      "aggressive": true,
+      "dialogue": ["You no take cave! Cave belongs to Gruk!"],
+      "stats": { "hp": 60, "attack": 9, "defense": 3, "speed": 4 },
+      "loot": ["item.goblin_totem", "item.gold_coin"]
+    },
+    "npc.bandit": {
+      "name": "Road Bandit",
+      "description": "A masked figure leaning on the fallen tree, flipping a knife.",
+      "role": "enemy",
+      "hostile": true,
+      "dialogue": ["Toll's everything you've got. Or we can do this the fun way."],
+      "stats": { "hp": 45, "attack": 8, "defense": 2, "speed": 6 },
+      "loot": ["item.bandit_cloak", "item.gold_coin"]
+    },
+    "npc.spider": {
+      "name": "Giant Spider",
+      "description": "Eight legs, eight eyes, and all of them on you.",
+      "role": "enemy",
+      "hostile": true,
+      "aggressive": true,
+      "dialogue": ["*clicking*"],
+      "stats": { "hp": 45, "attack": 9, "defense": 2, "speed": 9 },
+      "loot": ["item.spider_silk"]
+    },
+    "npc.hunter": {
+      "name": "Hunter Rolf",
+      "description": "Weathered, patient, and missing two fingers on his left hand.",
+      "role": "quest_giver",
+      "dialogue_tree": {
+        "start": {
+          "text": "Quiet. You'll scare the game.",
+          "options": [
+            { "text": "Anything worth hunting around here?", "next": "hunt", "if": { "quest": "q.spider_hunt", "status": "none" } },
+            { "text": "About the spider...", "next": "", "quest": "q.spider_hunt", "if": { "quest": "q.spider_hunt", "status": "active" } },
+            { "text": "Where do these roads go?", "next": "roads" },
+            { "text": "See you, Rolf.", "next": "" }
+          ]
+        },
+        "hunt": {
+          "text": "There's a spider in the hollow south of the deep woods, big as a cart. It took my dog. Kill it and bring me its silk; I'll make it worth your while.",
+          "options": [
+            { "text": "Consider it done.", "next": "", "quest": "q.spider_hunt" },
+            { "text": "A giant spider? No thanks.", "next": "" }
+          ]
+        },
+        "roads": {
+          "text": "East back to the forest and your village. South of this camp, the cart track to Dain's mine. The deep woods are south of the road - the druid lives there, if you like talking to trees.",
+          "options": [
+            { "text": "Thanks.", "next": "start" }
+          ]
+        }
+      }
+    },
+    "npc.druid": {
+      "name": "Elder Thorn",
+      "description": "Bark-brown skin, moss in his beard, and eyes the colour of the pool.",
+      "role": "dialogue",
+      "dialogue_tree": {
+        "start": {
+          "text": "The grove listens. So do I.",
+          "options": [
+            { "text": "Wenna sent me. Where do moonpetals bloom now?", "next": "petals", "if": { "quest": "q.moonpetal", "status": "active" } },
+            { "text": "What is this place?", "next": "lore" },
+            { "text": "Farewell.", "next": "" }
+          ]
+        },
+        "petals": {
+          "text": "Where the water is still: here in my pool, and among the reeds by the lake. They grow back, slowly. Take only what you need.",
+          "options": [
+            { "text": "I will take only what I need.", "next": "", "set_flag": "thorn_respect" },
+            { "text": "I'll take as many as I like.", "next": "greed", "set_flag": "thorn_greed" }
+          ]
+        },
+        "greed": {
+          "text": "Then the grove will remember you."
+        },
+        "lore": {
+          "text": "Older than the village. Older than the lake's name. Something hollow sleeps in the tower on the hill, and the roots feel it turning over.",
+          "options": [
+            { "text": "Back.", "next": "start" }
+          ]
+        }
+      }
+    }
+  },
+
+  "quests": {
+    "q.spider_hunt": {
+      "title": "The Hollow Spider",
+      "description": "Hunter Rolf wants the giant spider of the hollow dead, and its silk as proof.",
+      "giver": "npc.hunter",
+      "steps": [
+        { "description": "Kill the Giant Spider in the hollow south of the deep woods.", "type": "kill", "target": "npc.spider" },
+        { "description": "Bring the Spider Silk to Hunter Rolf.", "type": "deliver", "target": "item.spider_silk" }
+      ],
+      "reward": { "xp": 150, "items": ["item.hunters_bow"], "max_hp": 10 }
+    }
+  }
+}

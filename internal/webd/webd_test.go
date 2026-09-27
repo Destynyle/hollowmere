@@ -20,7 +20,7 @@ import (
 
 func newTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
-	w, err := game.LoadWorld("../../data/world.json")
+	w, err := game.LoadWorld("../../data/world")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func TestOperationalEndpoints(t *testing.T) {
 }
 
 func TestMetricsToken(t *testing.T) {
-	w, err := game.LoadWorld("../../data/world.json")
+	w, err := game.LoadWorld("../../data/world")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,5 +205,39 @@ func TestMetricsToken(t *testing.T) {
 	res2.Body.Close()
 	if res2.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200 with the token, got %d", res2.StatusCode)
+	}
+	for auth, want := range map[string]int{"Bearer s3cret": http.StatusOK, "Bearer nope": http.StatusForbidden} {
+		req, _ := http.NewRequest("GET", srv.URL+"/metrics", nil)
+		req.Header.Set("Authorization", auth)
+		res3, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res3.Body.Close()
+		if res3.StatusCode != want {
+			t.Fatalf("%s: got %d, want %d", auth, res3.StatusCode, want)
+		}
+	}
+}
+
+func TestLeaderboardPage(t *testing.T) {
+	srv := newTestServer(t)
+	res, err := http.Get(srv.URL + "/top")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	page, _ := io.ReadAll(res.Body)
+	if res.StatusCode != http.StatusOK || !strings.Contains(string(page), "Leaderboard") {
+		t.Fatalf("status %d: %s", res.StatusCode, page)
+	}
+	res2, err := http.Get(srv.URL + "/top.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res2.Body.Close()
+	var top []map[string]interface{}
+	if err := json.NewDecoder(res2.Body).Decode(&top); err != nil {
+		t.Fatal(err)
 	}
 }

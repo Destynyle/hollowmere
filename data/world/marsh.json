@@ -1,0 +1,227 @@
+{
+  "rooms": {
+    "loc.lakeside": {
+      "name": "Lakeside Lane",
+      "description": "The lane from the market ends at the grey water of the mere. Wooden docks stretch east; reeds crowd the shore to the south.",
+      "safe": true,
+      "exits": { "north": "loc.market", "east": "loc.docks", "south": "loc.reed_banks" }
+    },
+    "loc.docks": {
+      "name": "Hollowmere Docks",
+      "description": "Creaking planks and upturned boats. A rowing boat is tied at the end of the pier, pointed at a dark island far out on the water.",
+      "safe": true,
+      "exits": { "west": "loc.lakeside", "north": "loc.fishers_hut", "east": "loc.isle_shore" },
+      "spawns": [{ "npc": "npc.ferryman", "count": 1 }]
+    },
+    "loc.fishers_hut": {
+      "name": "Fisher's Hut",
+      "description": "Nets, hooks and a pot of something that was probably fish. It smells like a week ago.",
+      "safe": true,
+      "exits": { "south": "loc.docks" },
+      "items": ["item.fish_stew"],
+      "spawns": [{ "npc": "npc.fisher", "count": 1 }]
+    },
+    "loc.reed_banks": {
+      "name": "Reed Banks",
+      "description": "Reeds taller than you whisper on every side. Among them, pale flowers float on the still water.",
+      "exits": { "north": "loc.lakeside", "south": "loc.marsh_edge" },
+      "items": ["item.moonpetal"]
+    },
+    "loc.marsh_edge": {
+      "name": "Edge of the Marsh",
+      "description": "Firm ground gives way to sucking mud. A path of sunken logs leads south into the bog; the deep woods rise to the west.",
+      "exits": { "north": "loc.reed_banks", "west": "loc.deep_woods", "south": "loc.bog" },
+      "items": ["item.bog_moss"]
+    },
+    "loc.bog": {
+      "name": "The Black Bog",
+      "description": "Bubbles rise and burst with a smell of rot. A crooked hut stands on stilts to the west; the tip of a stone roof pokes out of the mud to the east.",
+      "exits": { "north": "loc.marsh_edge", "west": "loc.witch_hut", "east": "loc.sunken_shrine" },
+      "spawns": [{ "npc": "npc.bog_lurker", "count": 1 }]
+    },
+    "loc.witch_hut": {
+      "name": "Hut on Stilts",
+      "description": "Dried frogs, bottled fog, a cauldron that is definitely not soup. A cat watches you from the rafters with open contempt.",
+      "safe": true,
+      "exits": { "east": "loc.bog" },
+      "spawns": [{ "npc": "npc.witch", "count": 1 }]
+    },
+    "loc.sunken_shrine": {
+      "name": "Sunken Shrine",
+      "description": "Half a chapel swallowed by the bog. Water laps at the altar steps, and a drowned figure in a wedding dress drifts between the pews.",
+      "exits": { "west": "loc.bog" },
+      "spawns": [{ "npc": "npc.drowned", "count": 1 }]
+    },
+    "loc.isle_shore": {
+      "name": "Isle Shore",
+      "description": "The rowing boat grinds onto black shingle. Crabs the size of shields click among the rocks. Ruins crown the island to the north.",
+      "exits": { "west": "loc.docks", "north": "loc.isle_ruins" },
+      "spawns": [{ "npc": "npc.crab", "count": 1 }]
+    },
+    "loc.isle_ruins": {
+      "name": "Ruins of the Isle",
+      "description": "Broken columns around a cracked bronze bell half-buried in the earth. Someone has made a home among the stones.",
+      "safe": true,
+      "exits": { "south": "loc.isle_shore" },
+      "items": ["item.cracked_bell"],
+      "spawns": [{ "npc": "npc.hermit", "count": 1 }]
+    }
+  },
+
+  "items": {
+    "item.fish_stew": { "name": "Fish Stew", "description": "Old Pike's stew. Hot, thick and best not examined.", "obtainable": true, "heal": 30 },
+    "item.bog_moss": { "name": "Bog Moss", "description": "Spongy moss that numbs pain when pressed to a wound.", "obtainable": true, "heal": 12 },
+    "item.drowned_locket": { "name": "Drowned Locket", "description": "A tarnished silver locket. Inside, a tiny portrait of a smiling fisherman.", "obtainable": true },
+    "item.ferry_charm": { "name": "Ferryman's Charm", "description": "A knot of blue cord and a fish bone. Ilsa made it; the ferryman wants you to have it.", "obtainable": true, "defense": 6, "slot": "amulet", "min_level": 3 },
+    "item.crab_shell": { "name": "Crab Shell", "description": "A shell as big as a buckler. It will do as one.", "obtainable": true, "defense": 3, "min_level": 2 },
+    "item.cracked_bell": { "name": "Cracked Bell", "description": "The bronze bell of the old watch. Far too heavy, and half-buried besides.", "obtainable": false }
+  },
+
+  "npcs": {
+    "npc.ferryman": {
+      "name": "Ferryman Tobe",
+      "description": "A big man with red eyes and a rope wound around his fist.",
+      "role": "quest_giver",
+      "dialogue_tree": {
+        "start": {
+          "text": "The lake's too calm today. It's been too calm since she drowned.",
+          "options": [
+            { "text": "Who drowned?", "next": "wife", "if": { "quest": "q.lost_locket", "status": "none" } },
+            { "text": "About Ilsa's locket...", "next": "", "quest": "q.lost_locket", "if": { "quest": "q.lost_locket", "status": "active" } },
+            { "text": "Can I borrow the boat?", "next": "boat" },
+            { "text": "Goodbye.", "next": "" }
+          ]
+        },
+        "wife": {
+          "text": "My Ilsa. She went to pray at the old shrine the night the bog swallowed it. They say she still walks there. Her locket... I would give anything to hold it again.",
+          "options": [
+            { "text": "I'm sorry for your loss.", "next": "kindness", "set_flag": "kind_to_tobe" },
+            { "text": "I'll bring the locket back.", "next": "promise", "quest": "q.lost_locket" },
+            { "text": "Sounds like a job for someone else.", "next": "" }
+          ]
+        },
+        "kindness": {
+          "text": "...Thank you. Few folk say it. Most just ask about the boat.",
+          "options": [
+            { "text": "I'll bring her locket back to you.", "next": "promise", "quest": "q.lost_locket" },
+            { "text": "Take care, Tobe.", "next": "" }
+          ]
+        },
+        "promise": {
+          "text": "The shrine is east of the Black Bog, south of the reeds. Whatever walks there now... it isn't her. Don't let it fool you."
+        },
+        "boat": {
+          "text": "Take it. Row east to the isle. The hermit there won't bite, the crabs will."
+        }
+      }
+    },
+    "npc.fisher": {
+      "name": "Old Pike",
+      "description": "More beard than man, smelling strongly of his trade.",
+      "role": "quest_giver",
+      "dialogue": [
+        "Fish aren't biting. Crabs are. Big ones, out on the isle.",
+        "Stew's on the fire. Help yourself, it's good for you. Probably.",
+        "Tobe hasn't been right since Ilsa. Be gentle with him."
+      ]
+    },
+    "npc.witch": {
+      "name": "Grizelda",
+      "description": "Sharp nose, sharper eyes, and a hat that has seen things.",
+      "role": "dialogue",
+      "dialogue_tree": {
+        "start": {
+          "text": "Visitors. How tedious. Speak, or leave the mud where you found it.",
+          "options": [
+            { "text": "What is this place?", "next": "home" },
+            { "text": "Tell me about the shrine.", "next": "shrine", "if": { "quest": "q.lost_locket", "status": "active" } },
+            { "text": "Tobe has his locket back.", "next": "lesson", "if": { "quest": "q.lost_locket", "status": "completed" } },
+            { "text": "I'm leaving.", "next": "" }
+          ]
+        },
+        "home": {
+          "text": "My home, and none of yours. The bog keeps what it takes: carts, bells, brides. Mostly brides, lately.",
+          "options": [
+            { "text": "Back.", "next": "start" }
+          ]
+        },
+        "shrine": {
+          "text": "The thing in the shrine wears Ilsa's dress and Ilsa's locket. It is not Ilsa. Cut it down and the locket is yours. Or leave it, and it will keep walking. Your choice, dearie; I only watch.",
+          "options": [
+            { "text": "Back.", "next": "start" }
+          ]
+        },
+        "lesson": {
+          "text": "Returned what the water took. How rare. Here is a secret for your trouble: the Hollow King fears the sound of bells. The watch knew it. The watch is dead. Make of that what you will."
+        }
+      }
+    },
+    "npc.hermit": {
+      "name": "The Hermit",
+      "description": "An old woman in patched robes, sitting against the bell as if it were an armchair.",
+      "role": "dialogue",
+      "dialogue": [
+        "This bell rang every night for a hundred years. Then one night it cracked, and the tower lit up.",
+        "The watch lived on this isle. Sir Edric was their captain; he's buried under the chapel now.",
+        "Go home, young one. Or go up the hill. Just don't stay here - the crabs get bold after dark."
+      ]
+    },
+    "npc.bog_lurker": {
+      "name": "Bog Lurker",
+      "description": "A heap of weed and mud that rises with two burning eyes.",
+      "role": "enemy",
+      "hostile": true,
+      "aggressive": true,
+      "dialogue": ["*gurgle*"],
+      "stats": { "hp": 55, "attack": 10, "defense": 2, "speed": 3 },
+      "loot": ["item.bog_moss"]
+    },
+    "npc.drowned": {
+      "name": "Drowned Bride",
+      "description": "Wet hair, a torn wedding dress, and a silver locket at her throat. Her face is not quite a face.",
+      "role": "enemy",
+      "hostile": true,
+      "dialogue": ["Tobe...? Tobe, is that you...?"],
+      "stats": { "hp": 50, "attack": 9, "defense": 2, "speed": 5 },
+      "loot": ["item.drowned_locket"]
+    },
+    "npc.crab": {
+      "name": "Giant Crab",
+      "description": "A crab as wide as a table, with one claw much bigger than the other.",
+      "role": "enemy",
+      "hostile": true,
+      "dialogue": ["*click click*"],
+      "stats": { "hp": 35, "attack": 6, "defense": 4, "speed": 3 },
+      "loot": ["item.crab_shell"]
+    }
+  },
+
+  "quests": {
+    "q.lost_locket": {
+      "title": "The Drowned Locket",
+      "description": "Ferryman Tobe's wife drowned in the sunken shrine. He wants her locket back.",
+      "giver": "npc.ferryman",
+      "steps": [
+        { "description": "Find the sunken shrine, east of the Black Bog.", "type": "visit", "target": "loc.sunken_shrine" },
+        { "description": "Lay the Drowned Bride to rest.", "type": "kill", "target": "npc.drowned" },
+        { "description": "Bring the Drowned Locket back to Ferryman Tobe.", "type": "deliver", "target": "item.drowned_locket" }
+      ],
+      "reward": { "xp": 250,
+        "items": ["item.ferry_charm"],
+        "max_hp": 10,
+        "bonus": [
+          { "if": { "flag": "kind_to_tobe" }, "items": ["item.fish_stew"], "max_hp": 5, "message": "\"You were kind before you were useful,\" Tobe says. \"I won't forget it.\"" }
+        ]
+      }
+    },
+    "q.crab_trouble": {
+      "title": "Crabs of the Isle",
+      "description": "Old Pike can't fish with the giant crab raiding his lines on the isle.",
+      "giver": "npc.fisher",
+      "type": "kill",
+      "target": "npc.crab",
+      "count": 1,
+      "reward": { "xp": 100, "items": ["item.fish_stew", "item.fish_stew"], "max_hp": 5 }
+    }
+  }
+}

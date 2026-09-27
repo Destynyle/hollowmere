@@ -1,0 +1,28 @@
+# Alerts show up in Prometheus (Alerts tab) and in Grafana. For a phone
+# notification without running Alertmanager, use deploy/healthcheck.sh.
+groups:
+  - name: hollowmere
+    rules:
+      - alert: HollowmereDown
+        expr: up{job="hollowmere"} == 0
+        for: 2m
+        annotations:
+          summary: "The game server does not answer /metrics"
+      - alert: HollowmereRestarted
+        expr: tap_uptime_seconds < 300
+        annotations:
+          summary: "The server restarted less than 5 minutes ago"
+      - alert: HollowmereFlooding
+        expr: rate(tap_abuse_command_flood_total[5m]) > 1 or rate(tap_abuse_rapid_connections_total[5m]) > 0.5
+        for: 5m
+        annotations:
+          summary: "Sustained flooding: check the logs and consider a ban"
+      - alert: HollowmereSlowClients
+        expr: increase(tap_slow_clients_total[10m]) > 20
+        annotations:
+          summary: "Many clients dropped for a full send queue (network or server load)"
+      - alert: HollowmereErrors
+        expr: rate(tap_errors_total[5m]) > 0.5 * rate(tap_commands_total[5m]) and rate(tap_commands_total[5m]) > 1
+        for: 10m
+        annotations:
+          summary: "More than half of the commands fail"

@@ -1,0 +1,16 @@
+{
+  "name": "Hollowmere",
+  "start_room": "loc.square",
+  "safe_room": "loc.chapel",
+  "settings": {
+    "player_max_hp": 100,
+    "respawn_hp": 50,
+    "base_attack": 6,
+    "base_defense": 1,
+    "base_speed": 5,
+    "npc_respawn_seconds": 60,
+    "item_regrow_seconds": 45,
+    "crit_chance_percent": 10,
+    "flee_chance_percent": 60
+  }
+}

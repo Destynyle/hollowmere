@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -25,7 +26,10 @@ var protocolCommands = map[string]bool{
 	"CONNECT": true, "LOOK": true, "MOVE": true, "CHAT": true, "TAKE": true, "DROP": true,
 	"INVENTORY": true, "TALK": true, "ATTACK": true, "STATUS": true, "QUEST": true,
 	"QUESTS": true, "WHO": true, "GROUP": true, "QUIT": true, "DEFEND": true, "FLEE": true,
-	"USE": true, "ABANDON": true, "INSPECT": true, "HELP": true,
+	"USE": true, "ABANDON": true, "INSPECT": true, "HELP": true, "SAY": true,
+	"EQUIP": true, "UNEQUIP": true, "TRAIN": true, "SKILL": true, "SKILLS": true,
+	"TELL": true, "FRIEND": true, "TOP": true, "TRADE": true,
+	"ANNOUNCE": true, "KICK": true, "MUTE": true, "UNMUTE": true, "BAN": true, "UNBAN": true,
 }
 
 // term serialises all terminal output so that asynchronous events do not
@@ -219,6 +223,43 @@ func (c *client) renderEvent(p string) string {
 			return c.t.paint(cRed, "could not save your resume key: "+err.Error())
 		}
 		return c.t.paint(cGrey, "· character saved; this terminal will bring it back automatically")
+	case get(0) == "SERVER" && (get(1) == "KICK" || get(1) == "BAN"):
+		verb := "kicked"
+		if get(1) == "BAN" {
+			verb = "banned"
+		}
+		return c.t.paint(cRed, fmt.Sprintf("⛔ you were %s by a moderator. %s", verb, strings.TrimSpace(get(2)+" "+get(3))))
+	case get(0) == "SERVER" && get(1) == "MUTE":
+		return c.t.paint(cRed, fmt.Sprintf("🔇 you are muted for %s. %s", get(2), get(3)))
+	case get(0) == "SERVER" && get(1) == "ANNOUNCE":
+		return c.t.paint(cYellow, "📢 "+strings.TrimSpace(get(2)+" "+get(3)))
+	case get(0) == "PRIVATE" && get(1) == "MESSAGE":
+		msg := ""
+		if parts := strings.SplitN(p, " ", 4); len(parts) == 4 {
+			msg = parts[3]
+		}
+		return c.t.paint(cPurple, fmt.Sprintf("✉ %s whispers: %s   (answer: tell %s ...)", get(2), msg, get(2)))
+	case get(0) == "FRIEND":
+		return c.t.paint(cGrey, fmt.Sprintf("· your friend %s is %s", get(2), strings.ToLower(get(1))))
+	case get(0) == "TRADE" && get(1) == "REQUEST":
+		return c.t.paint(cYellow, fmt.Sprintf("⇄ %s wants to trade. Type: trade %s", get(2), get(2)))
+	case get(0) == "TRADE" && get(1) == "OPEN":
+		return c.t.paint(cYellow, fmt.Sprintf("⇄ trade open with %s: trade offer <item>, then trade accept", get(2)))
+	case get(0) == "TRADE" && (get(1) == "UPDATE" || get(1) == "DONE"):
+		payload := strings.TrimPrefix(strings.TrimPrefix(p, "TRADE "), get(1)+" ")
+		out := c.renderTrade(payload)
+		if get(1) == "DONE" {
+			out[0] = c.t.paint(cGreen, "⇄ trade done!")
+		}
+		return strings.Join(out, "\n")
+	case get(0) == "TRADE" && get(1) == "CANCEL":
+		return c.t.paint(cGrey, "⇄ trade cancelled by "+get(2))
+	case get(0) == "PLAYER" && get(1) == "XP":
+		return c.t.paint(cGrey, fmt.Sprintf("· +%s xp (%s)", get(2), get(3)))
+	case get(0) == "PLAYER" && get(1) == "LEVEL":
+		return c.t.paint(cYellow, fmt.Sprintf("★ LEVEL UP! You are now level %s. Fully healed; type 'status' and 'train <stat>'.", get(2)))
+	case get(0) == "PLAYER" && get(1) == "EQUIP":
+		return c.t.paint(cGreen, fmt.Sprintf("· you now wear %s (%s)", get(3), get(2)))
 	case get(0) == "PLAYER" && get(1) == "RESPAWN":
 		return c.t.paint(cRed, "☠ You were defeated and wake up in "+get(2)+". (type look)")
 	}
@@ -263,16 +304,8 @@ func (c *client) renderOK(cmd, payload string) []string {
 			}
 			return ok("you carry: " + strings.Join(items, ", "))
 		}
-	case "TALK":
-		var t struct{ NPC, Name, Dialogue string }
-		if json.Unmarshal([]byte(payload), &t) == nil && t.Dialogue != "" {
-			who := t.Name
-			if who == "" {
-				who = t.NPC
-			}
-			return []string{c.t.paint(cCyan, fmt.Sprintf("%s says: \"%s\"", who, t.Dialogue))}
-		}
-		return []string{c.t.paint(cCyan, "» "+payload)}
+	case "TALK", "SAY":
+		return c.renderTalk(payload)
 	case "WHO":
 		var w struct {
 			Room    []string `json:"room"`
@@ -289,25 +322,99 @@ func (c *client) renderOK(cmd, payload string) []string {
 	case "ATTACK", "DEFEND", "FLEE", "USE":
 		return c.renderCombat(payload)
 	case "STATUS":
-		var s struct {
-			HP       int    `json:"hp"`
-			MaxHP    int    `json:"max_hp"`
-			Status   string `json:"status"`
-			Target   string `json:"target"`
-			TargetHP *int   `json:"target_hp"`
-			Attack   int    `json:"attack"`
-			Defense  int    `json:"defense"`
-			InCombat bool   `json:"in_combat"`
+		return c.renderStatus(payload)
+	case "SKILL":
+		return c.renderCombat(payload)
+	case "SKILLS":
+		var list []struct {
+			Name, Description string
+			Level, Wait       int
+			Unlocked, Ready   bool
 		}
-		if json.Unmarshal([]byte(payload), &s) == nil {
-			line := fmt.Sprintf("HP %d/%d (%s)", s.HP, s.MaxHP, s.Status)
-			if s.Attack > 0 {
-				line += fmt.Sprintf(" atk %d def %d", s.Attack, s.Defense)
+		if json.Unmarshal([]byte(payload), &list) == nil {
+			out := []string{c.t.paint(cYellow, "Skills:")}
+			for _, sk := range list {
+				state := c.t.paint(cGreen, "ready")
+				switch {
+				case !sk.Unlocked:
+					state = c.t.paint(cGrey, fmt.Sprintf("level %d", sk.Level))
+				case !sk.Ready:
+					state = c.t.paint(cYellow, fmt.Sprintf("%d rounds", sk.Wait))
+				}
+				out = append(out, fmt.Sprintf("  %-7s [%s] %s", sk.Name, state, sk.Description))
 			}
-			if s.InCombat && s.TargetHP != nil {
-				line += fmt.Sprintf(" — fighting %s (hp %d)", s.Target, *s.TargetHP)
+			return out
+		}
+	case "EQUIP", "UNEQUIP":
+		var e struct {
+			Slot, Item, Replaced string
+			Attack, Defense      int
+		}
+		if json.Unmarshal([]byte(payload), &e) == nil {
+			verb := "you wear"
+			if cmd == "UNEQUIP" {
+				verb = "you take off"
+			}
+			line := fmt.Sprintf("%s %s (%s) — atk %d def %d", verb, e.Item, e.Slot, e.Attack, e.Defense)
+			if e.Replaced != "" {
+				line += " — replaced " + e.Replaced
 			}
 			return ok(line)
+		}
+	case "TELL":
+		return []string{c.t.paint(cPurple, "→ message sent to "+strings.TrimPrefix(payload, "sent="))}
+	case "FRIEND":
+		var fl []struct {
+			Name   string
+			Online bool
+		}
+		if json.Unmarshal([]byte(payload), &fl) == nil {
+			if len(fl) == 0 {
+				return ok("no friends yet: friend add <name>")
+			}
+			out := []string{c.t.paint(cYellow, "Friends:")}
+			for _, f := range fl {
+				state := c.t.paint(cGrey, "offline")
+				if f.Online {
+					state = c.t.paint(cGreen, "online")
+				}
+				out = append(out, fmt.Sprintf("  %-16s %s", f.Name, state))
+			}
+			return out
+		}
+		return ok(strings.Replace(payload, "=", ": ", 1))
+	case "TOP":
+		var top []struct {
+			Rank, Level, XP, Quests, Kills int
+			Name                           string
+			Online                         bool
+		}
+		if json.Unmarshal([]byte(payload), &top) == nil {
+			out := []string{c.t.paint(cYellow, "  #  name              lvl     xp  quests  kills")}
+			for _, e := range top {
+				line := fmt.Sprintf("  %-2d %-16s %4d %6d %7d %6d", e.Rank, e.Name, e.Level, e.XP, e.Quests, e.Kills)
+				if e.Online {
+					line += c.t.paint(cGreen, " ●")
+				}
+				out = append(out, line)
+			}
+			return out
+		}
+	case "TRADE":
+		if strings.HasPrefix(payload, "requested=") {
+			return ok("trade request sent to " + strings.TrimPrefix(payload, "requested=") + "; waiting for them to answer")
+		}
+		if payload == "" {
+			return ok("trade cancelled")
+		}
+		return c.renderTrade(payload)
+	case "TRAIN":
+		var tr struct {
+			Stat          string
+			Value, Points int
+		}
+		if json.Unmarshal([]byte(payload), &tr) == nil {
+			return ok(fmt.Sprintf("%s is now %d (%d points left)", tr.Stat, tr.Value, tr.Points))
 		}
 	case "QUEST":
 		var q questInfo
@@ -322,7 +429,11 @@ func (c *client) renderOK(cmd, payload string) []string {
 			}
 			out := []string{c.t.paint(cYellow, "Quest journal:")}
 			for _, q := range qs {
-				out = append(out, fmt.Sprintf("  [%s] %s (%s) %s", q.Status, q.title(), q.QuestID, q.Progress))
+				line := fmt.Sprintf("  [%s] %s (%s) %s", q.Status, q.title(), q.QuestID, q.Progress)
+				if q.Steps > 1 && q.Status == "active" {
+					line += fmt.Sprintf(" — step %d/%d: %s", q.Step, q.Steps, q.Objective)
+				}
+				out = append(out, line)
 			}
 			return out
 		}
@@ -353,8 +464,48 @@ type questInfo struct {
 	Reward      string   `json:"reward"`
 	Status      string   `json:"status"`
 	Progress    string   `json:"progress"`
+	Step        int      `json:"step"`
+	Steps       int      `json:"steps"`
+	Objective   string   `json:"objective"`
 	Granted     []string `json:"granted"`
 	Message     string   `json:"message"`
+}
+
+// renderTalk shows what an NPC says and, for a conversation, the numbered
+// answers to pick with "say <n>" (or just the number).
+func (c *client) renderTalk(payload string) []string {
+	var t struct {
+		NPC, Name, Dialogue string
+		Options             []struct {
+			N    int    `json:"n"`
+			Text string `json:"text"`
+		}
+		Quest *questInfo
+	}
+	if json.Unmarshal([]byte(payload), &t) != nil {
+		return []string{c.t.paint(cCyan, "» "+payload)}
+	}
+	who := t.Name
+	if who == "" {
+		who = t.NPC
+	}
+	var out []string
+	if t.Quest != nil && t.Quest.QuestID != "" {
+		out = append(out, c.renderQuest(*t.Quest)...)
+	}
+	if t.Dialogue != "" {
+		out = append(out, c.t.paint(cCyan, fmt.Sprintf("%s says: \"%s\"", who, t.Dialogue)))
+	}
+	for _, o := range t.Options {
+		out = append(out, fmt.Sprintf("  %s %s", c.t.paint(cBold, fmt.Sprintf("%d)", o.N)), o.Text))
+	}
+	if len(t.Options) > 0 {
+		out = append(out, c.t.paint(cGrey, "  (type the number of your answer)"))
+	}
+	if len(out) == 0 {
+		out = append(out, c.t.paint(cGrey, "· the conversation ends"))
+	}
+	return out
 }
 
 func (q questInfo) title() string {
@@ -368,6 +519,9 @@ func (c *client) renderQuest(q questInfo) []string {
 	out := []string{c.t.paint(cYellow, fmt.Sprintf("★ %s [%s] %s", q.title(), q.Status, q.Progress))}
 	if q.Description != "" {
 		out = append(out, "  "+q.Description)
+	}
+	if q.Steps > 1 && q.Status != "completed" {
+		out = append(out, fmt.Sprintf("  Step %d/%d: %s", q.Step, q.Steps, q.Objective))
 	}
 	if q.Reward != "" {
 		out = append(out, "  Reward: "+q.Reward)
@@ -448,6 +602,87 @@ func (c *client) renderLook(payload string) []string {
 	return out
 }
 
+// renderTrade shows both sides of an open trade.
+func (c *client) renderTrade(payload string) []string {
+	var v struct {
+		With         string   `json:"with"`
+		Mine         []string `json:"mine"`
+		Theirs       []string `json:"theirs"`
+		Accepted     bool     `json:"accepted"`
+		TheyAccepted bool     `json:"they_accepted"`
+	}
+	if json.Unmarshal([]byte(payload), &v) != nil {
+		return []string{pretty(payload)}
+	}
+	list := func(items []string) string {
+		if len(items) == 0 {
+			return "nothing"
+		}
+		return strings.Join(items, ", ")
+	}
+	mark := func(b bool) string {
+		if b {
+			return c.t.paint(cGreen, " ✓ accepted")
+		}
+		return ""
+	}
+	return []string{
+		c.t.paint(cYellow, "Trade with "+v.With+":"),
+		"  you give:  " + list(v.Mine) + mark(v.Accepted),
+		"  you get:   " + list(v.Theirs) + mark(v.TheyAccepted),
+		c.t.paint(cGrey, "  trade offer <item> | trade remove <item> | trade accept | trade cancel"),
+	}
+}
+
+func (c *client) renderStatus(payload string) []string {
+	var s struct {
+		HP        int                `json:"hp"`
+		MaxHP     int                `json:"max_hp"`
+		Status    string             `json:"status"`
+		Target    string             `json:"target"`
+		TargetHP  *int               `json:"target_hp"`
+		Attack    int                `json:"attack"`
+		Defense   int                `json:"defense"`
+		InCombat  bool               `json:"in_combat"`
+		Level     int                `json:"level"`
+		XP        int                `json:"xp"`
+		XPNext    int                `json:"xp_next"`
+		Points    int                `json:"points"`
+		Speed     int                `json:"speed"`
+		Crit      int                `json:"critical_chance"`
+		Stats     map[string]int     `json:"stats"`
+		Equipment map[string]*string `json:"equipment"`
+	}
+	if json.Unmarshal([]byte(payload), &s) != nil {
+		return []string{pretty(payload)}
+	}
+	line := fmt.Sprintf("HP %d/%d (%s)", s.HP, s.MaxHP, s.Status)
+	if s.Attack > 0 {
+		line += fmt.Sprintf(" atk %d def %d", s.Attack, s.Defense)
+	}
+	if s.InCombat && s.TargetHP != nil {
+		line += fmt.Sprintf(" — fighting %s (hp %d)", s.Target, *s.TargetHP)
+	}
+	out := []string{c.t.paint(cGreen, "✓ "+line)}
+	if s.Level > 0 {
+		out = append(out, fmt.Sprintf("  level %d — xp %d/%d — speed %d, critical %d%%", s.Level, s.XP, s.XPNext, s.Speed, s.Crit))
+		out = append(out, fmt.Sprintf("  strength %d, agility %d, endurance %d", s.Stats["strength"], s.Stats["agility"], s.Stats["endurance"]))
+		if s.Points > 0 {
+			out = append(out, c.t.paint(cYellow, fmt.Sprintf("  %d stat points to spend: train strength|agility|endurance", s.Points)))
+		}
+		var gear []string
+		for _, slot := range []string{"weapon", "armor", "amulet"} {
+			v := "-"
+			if id := s.Equipment[slot]; id != nil {
+				v = *id
+			}
+			gear = append(gear, slot+": "+v)
+		}
+		out = append(out, "  "+strings.Join(gear, ", "))
+	}
+	return out
+}
+
 func (c *client) renderCombat(payload string) []string {
 	var r map[string]interface{}
 	if json.Unmarshal([]byte(payload), &r) != nil {
@@ -467,6 +702,8 @@ func (c *client) renderCombat(payload string) []string {
 	}
 	if used, ok := r["used"]; ok {
 		out = append(out, c.t.paint(cGreen, fmt.Sprintf("✓ used %v, healed %s (HP %s/%s)", used, num("healed"), num("hp"), num("max_hp"))))
+	} else if skill, ok := r["skill"]; ok && r["healed"] != nil {
+		out = append(out, c.t.paint(cGreen, fmt.Sprintf("✓ %v: healed %s (HP %s/%s)", skill, num("healed"), num("hp"), num("max_hp"))))
 	}
 	switch r["status"] {
 	case "fled":
@@ -501,8 +738,13 @@ func translate(input string) (string, error) {
 	dirs := map[string]string{
 		"n": "north", "s": "south", "e": "east", "w": "west", "u": "up", "d": "down",
 		"north": "north", "south": "south", "east": "east", "west": "west", "up": "up", "down": "down",
+		"ne": "northeast", "nw": "northwest", "se": "southeast", "sw": "southwest",
+		"northeast": "northeast", "northwest": "northwest", "southeast": "southeast", "southwest": "southwest",
 	}
 	lw := strings.ToLower(word)
+	if _, err := strconv.Atoi(word); err == nil && rest == "" {
+		return "SAY " + word, nil // answer in a conversation
+	}
 	if d, ok := dirs[lw]; ok && rest == "" {
 		return "MOVE " + d, nil
 	}
@@ -535,6 +777,8 @@ func translate(input string) (string, error) {
 		return "INVENTORY", nil
 	case "talk", "speak":
 		return need("TALK")
+	case "answer", "choose", "reply", "c":
+		return need("SAY")
 	case "attack", "kill", "k", "hit":
 		return need("ATTACK")
 	case "defend", "block":
@@ -551,6 +795,42 @@ func translate(input string) (string, error) {
 		return "QUESTS", nil
 	case "abandon":
 		return need("ABANDON")
+	case "equip", "wear", "wield":
+		return need("EQUIP")
+	case "unequip", "remove":
+		return need("UNEQUIP")
+	case "train":
+		return need("TRAIN")
+	case "skill", "cast":
+		return need("SKILL")
+	case "strike", "parry", "heal":
+		return "SKILL " + lw, nil
+	case "skills":
+		return "SKILLS", nil
+	case "tell", "whisper", "w", "msg":
+		return need("TELL")
+	case "friend":
+		if rest == "" {
+			return "FRIEND LIST", nil
+		}
+		sub, arg, _ := strings.Cut(rest, " ")
+		return "FRIEND " + strings.ToUpper(sub) + " " + strings.TrimSpace(arg), nil
+	case "friends":
+		return "FRIEND LIST", nil
+	case "announce", "kick", "mute", "unmute", "ban", "unban":
+		return need(strings.ToUpper(lw))
+	case "top", "leaderboard", "ranking":
+		return "TOP", nil
+	case "trade":
+		if rest == "" {
+			return "TRADE INFO", nil
+		}
+		sub, arg, _ := strings.Cut(rest, " ")
+		switch strings.ToUpper(sub) {
+		case "OFFER", "REMOVE", "ACCEPT", "CANCEL", "INFO", "WITH":
+			return strings.TrimSpace("TRADE " + strings.ToUpper(sub) + " " + strings.TrimSpace(arg)), nil
+		}
+		return "TRADE " + rest, nil
 	case "who":
 		return "WHO", nil
 	case "inspect", "examine", "x":
@@ -576,7 +856,7 @@ func translate(input string) (string, error) {
 
 const helpText = `Commands (protocol syntax such as "MOVE north" also works):
   look | l                     describe the room
-  go <dir> | n s e w u d       move
+  go <dir> | n s e w u d ne…   move
   say <msg>                    chat to the room
   shout <msg>                  chat to everyone
   gsay <msg>                   chat to your group
@@ -585,12 +865,22 @@ const helpText = `Commands (protocol syntax such as "MOVE north" also works):
   use <item>                   drink/eat a healing item
   inspect <thing>              details about an item or NPC
   talk <npc>                   talk to an NPC
+  <n> | answer <n>             pick answer n in a conversation
   attack <npc> | defend | flee combat (turn-based)
-  status                       your health
+  status                       health, level, stats and equipment
+  equip <item> | unequip <slot>  wear or take off (weapon, armor, amulet)
+  train <stat>                 spend a point: strength, agility, endurance
+  skills | strike | parry | heal  special moves (cooldown in rounds)
   quest <npc>                  accept / check / turn in a quest
   quests | abandon <quest_id>  your quest journal
   who                          players here and online
   group create | invite <p> | join <leader> | leave | info
+  tell <player> <msg>          private message
+  friend add|remove <p> | friends   friends list (notified when they log in)
+  top                          leaderboard (also on the web at /top)
+  trade <player>               then: trade offer <item> | remove <item> | accept | cancel
+  moderators: announce <msg> | kick <p> [why] | mute <p> <10m> [why] | unmute <p>
+  admins:     ban <p> [2h|3d|perm] [why] | unban <p>
   raw <line>                   send a raw protocol line
   quit                         leave the game`
 

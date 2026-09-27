@@ -55,7 +55,7 @@ existants. Configure ton identité si besoin :
 
 ## 2. Où en est le projet
 
-Fait (étapes 1 à 3) :
+Fait (étapes 1 à 7) :
 
 - moteur repris du projet école, sur Go 1.27 avec `log/slog` ;
 - couche `session` commune : un transport n'implémente que « lire une
@@ -67,9 +67,38 @@ Fait (étapes 1 à 3) :
   arrêt propre qui prévient les joueurs ;
 - **persistance SQLite** avec clé de reprise, sauvegarde toutes les 60 s,
   sauvegarde à chaud (`-backup`, `deploy/backup.sh`) ;
-- Docker, compose, Makefile, tests (moteur, WebSocket, stockage).
+- Docker, compose, Makefile, tests (moteur, WebSocket, stockage) ;
+- **monde en zones** (`data/world/*.json`, 46 salles, 13 quêtes, 36 PNJ),
+  dialogues à choix (`TALK` / `SAY <n>`, conditions, drapeaux), quêtes à
+  étapes (`fetch`, `deliver`, `kill`, `visit`, `talk`) et récompenses
+  conditionnelles ; `make check-world` affiche les avertissements et un
+  test exige zéro avertissement sur le monde livré ;
+- **progression** : XP et niveaux (100 × n^1.5), force / agilité /
+  endurance (`TRAIN`), emplacements arme / armure / amulette (`EQUIP`,
+  `UNEQUIP`, niveau minimum), compétences `strike`, `parry`, `heal`
+  (`SKILL`, `SKILLS`), sauvegarde v2 avec migration des v1 ;
+- **social** : `TELL` (seau à jetons partagé, paquet `internal/limit`),
+  amis sauvegardés avec le personnage et notifiés, classement (`TOP`,
+  pages `/top` et `/top.json`, colonnes en base : schéma SQLite v2 migré
+  automatiquement), `TRADE` à double acceptation, donjon de groupe sous la
+  forge (4 salles, `min_group`, boss `scale_per_player`, quête « Only
+  Together »).
 
-Reste à faire : étapes 4 à 7, détaillées plus bas.
+- **production** : modération (rôles donnés en console avec `-grant`,
+  `KICK`, `MUTE`, `BAN` sur clé + IP plafonnée à 7 jours, journal
+  `modlog`), clés de reprise masquées dans les logs, 16 connexions
+  simultanées max par IP, `/metrics` en Bearer, profils compose `tunnel`
+  et `monitoring` (Prometheus + Grafana), unité systemd, `restore.sh`
+  (testé pour de vrai), `offsite.sh`, `healthcheck.sh`. Guide complet :
+  `deploy/README.md`.
+
+Les 7 étapes sont faites. Ce qui reste demande ton compte ou ta machine :
+créer le tunnel Cloudflare (domaine + token), installer la crontab, choisir
+la destination hors machine, et lancer une fois le profil `monitoring`
+(le démon Docker n'était pas démarré ici, Prometheus/Grafana n'ont donc
+été validés que syntaxiquement). L'équilibrage (XP des
+quêtes, niveaux minimum, stats des boss) n'a pas encore été éprouvé en
+jouant : à surveiller.
 
 ### Décisions déjà prises (ne pas re-débattre)
 
@@ -86,7 +115,7 @@ Reste à faire : étapes 4 à 7, détaillées plus bas.
 
 ## 3. La suite des étapes
 
-### Étape 4 — Contenu du monde
+### Étape 4 — Contenu du monde (faite)
 
 Objectif : passer de 11 salles à un vrai terrain de jeu (viser 40 à 60
 salles), avec des dialogues qui ne soient pas une simple liste de répliques.
@@ -113,7 +142,7 @@ salles), avec des dialogues qui ne soient pas une simple liste de répliques.
 Fichiers concernés : `internal/game/world.go`, `commands.go` (TALK, SAY),
 `data/world/`, plus la doc du format dans `README.md`.
 
-### Étape 5 — Progression du personnage
+### Étape 5 — Progression du personnage (faite)
 
 1. **XP et niveaux** : XP gagnée en tuant un ennemi (selon ses PV et son
    niveau) et en rendant une quête. Palier proposé :
@@ -129,11 +158,13 @@ Fichiers concernés : `internal/game/world.go`, `commands.go` (TALK, SAY),
    minimum par objet.
 4. **Compétences** : 3 ou 4 suffisent au début (coup puissant, soin,
    parade), avec un temps de recharge en nombre de tours.
-5. **Migration de sauvegarde** : `PlayerSave` passe en version 2. Écrire la
+5. **Migration de sauvegarde** : `PlayerSave` passe en version 2 (les
+   champs `step` et `flags` de l'étape 4 sont optionnels et n'ont pas
+   demandé de changement de version). Écrire la
    migration dans `internal/game/persist.go` (une sauvegarde v1 se charge
    avec niveau 1 et statistiques de base) et un test qui charge une v1.
 
-### Étape 6 — Social et multijoueur
+### Étape 6 — Social et multijoueur (faite)
 
 1. **Messages privés** : `TELL <joueur> <message>` →
    `EVT PRIVATE MESSAGE <de> <message>`, avec refus si le joueur est hors
@@ -149,7 +180,7 @@ Fichiers concernés : `internal/game/world.go`, `commands.go` (TALK, SAY),
 5. **Donjon de groupe** : une zone dont l'entrée exige un groupe de 2 ou 3,
    avec un ennemi dont les PV dépendent du nombre de joueurs.
 
-### Étape 7 — Mise en production
+### Étape 7 — Mise en production (faite, voir `deploy/README.md`)
 
 1. **Modération** : table `admins` (clé de reprise → rôle), commandes
    `KICK`, `MUTE <durée>`, `BAN`, `ANNOUNCE`, toutes journalisées. Le ban
