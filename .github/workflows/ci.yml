@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Lint (gofmt, vet, world validation, JS syntax)
+        run: make lint
+      - name: Test (race detector)
+        run: make test
+      - name: Build the WebAssembly demo
+        run: make demo
+      - name: Build the Docker image
+        run: docker build -t hollowmere:ci .
